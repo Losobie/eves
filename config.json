@@ -1,0 +1,8 @@
+{
+	"server": "https://esi.evetech.net/latest/",
+	"server_suffix": "/?datasource=tranquility",
+	"eve_path": "C:\\Users\\Losobie\\AppData\\Local\\CCP\\EVE\\c_ccp_eve_tq_tranquility\\",
+	"eve_path_real": "%LOCALAPPDATA%\\CCP\\EVE\\*\\",
+	"eve_env": "c_ccp_eve_tq_tranquility",
+	"settings_folder": "settings_Default"
+}

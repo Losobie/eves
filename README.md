@@ -1,0 +1,123 @@
+# Usage
+
+## Lookup
+
+### All Local Characters
+eves lookup [--all, -a]
+
+### Specific Character
+eves lookup [CHAR_NAME]
+
+## Backup Configurations
+
+### List Backups
+eves backup list
+
+### Create New Backup
+eves backup create [--tag, -t TAG] [--message, -m MESSAGE] [--group, -g GROUP_NAME]
+
+examples:
+* eves backup
+* eves backup -t 1.1
+* eves backup -t 1.2 -m 'Fixed drone window position'
+* eves backup -t 1.3 -m 'Moved selected target for kiki alts' -g kiki
+
+### Delete Backup
+
+eves backup delete {TIMESTAMP | --all, -a | --tag, -t TAG | --group, -g GROUP_NAME | {--before TIMESTAMP | --after TIMESTAMP} }
+
+
+eves
+    lookup [CHAR_NAME] [--all, -a]
+    backup
+        list
+        create [--tag, -t TAG] [--message, -m MESSAGE] [--group, -g GROUP_NAME]
+        delete {TIMESTAMP | --all, -a | --tag, -t TAG | --group, -g GROUP_NAME | {--before TIMESTAMP | --after TIMESTAMP} }
+        info {TIMESTAMP | --tag, -t TAG}
+    restore {TIMESTAMP | --tag, -t TAG} [{--backup | --nobackup}]
+    copy {CHAR_NAME | STORED_ID} {CHAR_NAME | GROUP_NAME | --all, -a }
+    group
+        list
+        add {CHAR_NAME | CHAR_ID}
+        remove {CHAR_NAME | CHAR_ID}
+        info GROUP_NAME
+    store {list | CHAR_NAME}
+    cache
+        clear
+        update
+    env
+    list
+    use ENVIRONMENT_NAME
+    config ???
+
+copy settings from source to destination
+
+sources = character name, stored
+destinations = character name, group, all
+
+list (all) - shows all characters, their corporation and alliance including id's
+list (character) - shows a specific character, its corporation, alliance and id's
+
+backup
+- list - lists all backups available with a timestamp and short message if added
+- create - creates a new backup
+  eg.
+  backup create // creates a backup with no tag or message for all characters
+  backup create -t 1.1 -m 'Version 1.1 of my backup' -g group1 // creates a backup with the tag "1.1", a message for characters in group1
+- delete - deletes backups
+  eg.
+  delete 32151251251
+  delete -tag 1.1
+  delete -all
+  delete -before 3210123
+  delete -after 32151241
+  delete -before 213214124 -after 1231412541
+  delete -group group1 // deletes backups where the characters exactly match those in group1
+- info - shows information about a specific backup selected by timestamp or tag
+
+restore - restores a backup by tag or timestamp
+restore 312512512515 - restores by timestamp
+restore -tag 1.1 - restores by tag
+restore 321421412541 -backup - restores by timestamp but creates a new backup before storing
+restore 312412512541 -backup=false - stores by timestamp but does not save a backup when config for backup on restore is set
+
+group - manages groups of characters that can be used in other commands (look into seeing if this can be integrated with EVE profiles???)
+list
+add
+remove
+info
+
+env - commands to manage which EVE environment is being managed (on first run auto-detect and notify user)
+config - commands to manage where eves will store its configuration files/cache (local or user settings)
+cache - clears or updates the cache of character name lookups
+
+https://support.eveonline.com/hc/en-us/articles/8563435867804-EVE-Online-Naming-Policy
+
+Implementation order
+
+1. copy CHAR_NAME {CHAR_NAME | --all, -a}
+2. backup create
+3. backup list
+4. restore by TIMESTAMP
+5. character name cache along with clear and update
+6. remainder of backup and restore without groups
+7. group commands
+8. groups in the copy command
+9. groups in the backup command
+10. store command
+11. store in the copy command
+    12a. config command
+    12b. env command
+
+Other thoughts:
+
+config settings
+warning_backup_days
+warning_last_backup
+warning_restore
+
+Have a backup warning before applying copy if a character has not been included in a previous backup going back a number of days. Setting backup_warning_days to 0 should mute this warning. Default to something like one day or one week (7).
+
+Warning if you are about to delete the last backup for a character
+
+Have a restore warning indicating which characters a restore would modify, this should be silenced if restore_warning is set to false
