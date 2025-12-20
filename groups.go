@@ -86,11 +86,29 @@ func saveGroups(g Groups) error {
 	return nil
 }
 
+func memberKey(s string) string {
+	// Normalize entries so dedupe/removal behave well with "Name@Profile"
+	// and sloppy spacing like "Name @ Profile".
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "" {
+		return ""
+	}
+
+	at := strings.LastIndex(s, "@")
+	if at <= 0 || at == len(s)-1 {
+		return s
+	}
+
+	name := strings.TrimSpace(s[:at])
+	profile := strings.TrimSpace(s[at+1:])
+	return name + "@" + profile
+}
+
 func uniquePreserveOrder(in []string) []string {
 	seen := map[string]struct{}{}
 	out := make([]string, 0, len(in))
 	for _, s := range in {
-		key := strings.ToLower(strings.TrimSpace(s))
+		key := memberKey(s)
 		if key == "" {
 			continue
 		}
@@ -117,15 +135,14 @@ func AddToGroup(name, group string) error {
 	}
 
 	list := g[group]
-	lname := strings.ToLower(name)
+	kname := memberKey(name)
 	for _, existing := range list {
-		if strings.ToLower(strings.TrimSpace(existing)) == lname {
-			// already present; normalize & save to ensure dedup/order
+		if memberKey(existing) == kname {
 			return saveGroups(g)
 		}
 	}
 
-	g[group] = append(list, name)
+	g[group] = append(list, kname)
 	return saveGroups(g)
 }
 
@@ -148,11 +165,11 @@ func RemoveFromGroup(name, group string) (bool, error) {
 		return false, saveGroups(g)
 	}
 
-	lname := strings.ToLower(name)
+	kname := memberKey(name)
 	newList := make([]string, 0, len(list))
 	removed := false
 	for _, existing := range list {
-		if strings.ToLower(strings.TrimSpace(existing)) == lname {
+		if memberKey(existing) == kname {
 			removed = true
 			continue
 		}

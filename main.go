@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -42,7 +41,8 @@ func main() {
 		log.Fatalf("Error getting cache dir: %v", err)
 	}
 
-	directory := filepath.Join(cacheDir, "\\CCP\\EVE\\", config.EveEnv, "\\", config.SettingsFolder)
+	baseDir := filepath.Join(cacheDir, "CCP", "EVE", config.EveEnv)
+	directory := filepath.Join(baseDir, config.SettingsFolder)
 
 	if len(args) == 1 {
 		lookupLocal(directory, config.Server, config.ServerSuffix)
@@ -51,49 +51,75 @@ func main() {
 
 	switch args[1] {
 	case "copy":
-		if len(args) < 4 {
-			fmt.Println("Copy a characters settings over another")
-			//all := flag.Bool("all", false, "Copy settings over all characters")
-			flag.Parse()
-			flagArgs := flag.Args()
-			fmt.Println(flagArgs)
-		} else if len(args) == 4 {
+		if len(args) != 4 {
+			dieCopyUsage()
+		}
+		sourceChar := parseCharRef(args[2])
+		sourceDir, err := resolveProfileDir(baseDir, config.SettingsFolder, sourceChar.Profile)
+		if err != nil {
+			fail(err)
+		}
 
-			charMap := getLocalChars(directory, config.Server, config.ServerSuffix)
-			sourceChar := args[2]
+		sourceId, err := resolveCharID(sourceDir, config.Server, config.ServerSuffix, sourceChar.Name)
+		if err != nil {
+			fail(err)
+		}
 
-			sourceId, ok := charMap[sourceChar]
-			if !ok {
-				log.Fatalf("Source character not found: %s", sourceChar)
-			}
+		targetToken := args[3]
 
-			target := args[3]
+		members, err := GroupMembers(targetToken)
+		if err != nil {
+			fail(err)
+		}
 
-			members, err := GroupMembers(target)
-			if err != nil {
-				log.Fatalf("Error getting group members: %v", err)
-			}
-			if members == nil || len(members) == 0 {
-
-			}
-
-			var targetIds []string
-			for _, charName := range members {
-				if v, ok := charMap[charName]; ok {
-					targetIds = append(targetIds, v)
-				}
-			}
-
-			for _, targetId := range targetIds {
-				if sourceId == targetId {
+		if len(members) > 0 {
+			for _, memberToken := range members {
+				memberRef := parseCharRef(memberToken)
+				memberDir, err := resolveProfileDir(baseDir, config.SettingsFolder, memberRef.Profile)
+				if err != nil {
+					// you can choose fail-fast or skip; this is skip w/ verbose logging
+					vlog("Skipping %q: %v", memberToken, err)
 					continue
 				}
-				err := copySettings(directory, sourceId, targetId)
+
+				memberId, err := resolveCharID(memberDir, config.Server, config.ServerSuffix, memberRef.Name)
 				if err != nil {
-					log.Fatalf("Error copying settings from %s to %s: %v", sourceId, targetId, err)
+					vlog("Skipping %q: %v", memberToken, err)
+					continue
+				}
+
+				// Avoid self-copy when source and dest resolve to same file
+				if sourceDir == memberDir && sourceId == memberId {
+					continue
+				}
+
+				if err := copySettings(sourceDir, sourceId, memberDir, memberId); err != nil {
+					// choose fail-fast here because partial copies can be surprising
+					fail(fmt.Errorf("copy to %q failed: %w", memberToken, err))
 				}
 			}
+			return
 		}
+
+		// Otherwise treat it as a character ref:
+		destRef := parseCharRef(targetToken)
+		destDir, err := resolveProfileDir(baseDir, config.SettingsFolder, destRef.Profile)
+		if err != nil {
+			fail(err)
+		}
+
+		destId, err := resolveCharID(destDir, config.Server, config.ServerSuffix, destRef.Name)
+		if err != nil {
+			fail(err)
+		}
+
+		if sourceDir == destDir && sourceId == destId {
+			return
+		}
+		if err := copySettings(sourceDir, sourceId, destDir, destId); err != nil {
+			fail(err)
+		}
+		return
 	case "group":
 		if len(args) < 3 {
 			dieGroupUsage()
@@ -250,9 +276,10 @@ func main() {
 	}
 }
 
-func copySettings(directory, sourceId, targetId string) error {
-	sourcePath := directory + "\\core_char_" + sourceId + ".dat"
-	targetPath := directory + "\\core_char_" + targetId + ".dat"
+func copySettings(sourceDir, sourceId, targetDir, targetId string) error {
+	sourcePath := filepath.Join(sourceDir, fmt.Sprintf("core_char_%s.dat", sourceId))
+	targetPath := filepath.Join(targetDir, fmt.Sprintf("core_char_%s.dat", targetId))
+
 	vlog("Copying settings from %s to %s", sourcePath, targetPath)
 
 	source, err := os.Open(sourcePath)
@@ -272,7 +299,6 @@ func copySettings(directory, sourceId, targetId string) error {
 	if _, err := io.Copy(target, source); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -332,6 +358,14 @@ func getLocalChars(directory, server, suffix string) map[string]string {
 		charMap[character.Name] = id
 	}
 	return charMap
+}
+
+func resolveCharID(directory, server, suffix, name string) (string, error) {
+	charMap := getLocalChars(directory, server, suffix)
+	if id, ok := charMap[name]; ok {
+		return id, nil
+	}
+	return "", fmt.Errorf("character not found in profile directory %s: %q", directory, name)
 }
 
 func lookupLocal(directory, server, suffix string) {
@@ -428,8 +462,8 @@ func lookupLocal(directory, server, suffix string) {
 func dieGroupUsage() {
 	fmt.Fprintf(os.Stderr, strings.TrimSpace(`
 usage:
-  eves group add "My Name" <group>
-  eves group remove "My Name" <group>
+  eves group add "Char Name" <group>
+  eves group remove "Char Name" <group>
   eves group list
   eves group list <group>
   eves group delete <group>
@@ -444,6 +478,18 @@ usage:
   eves profile get
   eves profile set 1
   eves profile set Default
+`)+"\n")
+	os.Exit(2)
+}
+
+func dieCopyUsage() {
+	fmt.Fprintf(os.Stderr, strings.TrimSpace(`
+usage:
+  eves copy "Source Char Name" "Destination Char Name"
+  eves copy "Source Char Name@profile1" "Destination Char Name"
+  eves copy "Source Char Name@1" "Destination Char Name"
+  eves copy "Source Char Name" "Destination Char Name@profile2"
+  eves copy "Source Char Name" <group>
 `)+"\n")
 	os.Exit(2)
 }
