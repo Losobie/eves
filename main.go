@@ -54,7 +54,9 @@ func main() {
 		if len(args) != 4 {
 			dieCopyUsage()
 		}
-		sourceChar := parseCharRef(args[2])
+
+		currentProfile := config.SettingsFolder[9:]
+		sourceChar := parseCharRef(args[2], currentProfile)
 		sourceDir, err := resolveProfileDir(baseDir, config.SettingsFolder, sourceChar.Profile)
 		if err != nil {
 			fail(err)
@@ -73,18 +75,17 @@ func main() {
 		}
 
 		if len(members) > 0 {
-			for _, memberToken := range members {
-				memberRef := parseCharRef(memberToken)
+			for _, memberRef := range members {
 				memberDir, err := resolveProfileDir(baseDir, config.SettingsFolder, memberRef.Profile)
 				if err != nil {
 					// you can choose fail-fast or skip; this is skip w/ verbose logging
-					vlog("Skipping %q: %v", memberToken, err)
+					vlog("Skipping %q: %v", memberRef, err)
 					continue
 				}
 
 				memberId, err := resolveCharID(memberDir, config.Server, config.ServerSuffix, memberRef.Name)
 				if err != nil {
-					vlog("Skipping %q: %v", memberToken, err)
+					vlog("Skipping %q: %v", memberRef, err)
 					continue
 				}
 
@@ -95,14 +96,14 @@ func main() {
 
 				if err := copySettings(sourceDir, sourceId, memberDir, memberId); err != nil {
 					// choose fail-fast here because partial copies can be surprising
-					fail(fmt.Errorf("copy to %q failed: %w", memberToken, err))
+					fail(fmt.Errorf("copy to %q failed: %w", memberRef, err))
 				}
 			}
 			return
 		}
 
 		// Otherwise treat it as a character ref:
-		destRef := parseCharRef(targetToken)
+		destRef := parseCharRef(targetToken, currentProfile)
 		destDir, err := resolveProfileDir(baseDir, config.SettingsFolder, destRef.Profile)
 		if err != nil {
 			fail(err)
@@ -132,7 +133,9 @@ func main() {
 			}
 			name := args[3]
 			group := args[4]
-			if err := AddToGroup(name, group); err != nil {
+			currentProfile := config.SettingsFolder[9:]
+			charRef := parseCharRef(name, currentProfile)
+			if err := AddToGroup(charRef, group); err != nil {
 				fail(err)
 			}
 			fmt.Printf("Added %q to group %q\n", name, group)
@@ -145,7 +148,9 @@ func main() {
 			}
 			name := args[3]
 			group := args[4]
-			removed, err := RemoveFromGroup(name, group)
+			currentProfile := config.SettingsFolder[9:]
+			charRef := parseCharRef(name, currentProfile)
+			removed, err := RemoveFromGroup(charRef, group)
 			if err != nil {
 				fail(err)
 			}

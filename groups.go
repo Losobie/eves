@@ -10,11 +10,11 @@ import (
 	"strings"
 )
 
-type Groups map[string][]string
+type Groups map[string][]CharRef
 
 type kv struct {
 	Key   string
-	Value []string
+	Value []CharRef
 }
 
 func loadGroups() (Groups, error) {
@@ -64,7 +64,7 @@ func saveGroups(g Groups) error {
 	}
 	sort.Strings(keys)
 
-	ordered := make(map[string][]string, len(keys))
+	ordered := make(map[string][]CharRef, len(keys))
 	for _, k := range keys {
 		v := uniquePreserveOrder(g[k])
 		ordered[k] = v
@@ -86,47 +86,29 @@ func saveGroups(g Groups) error {
 	return nil
 }
 
-func memberKey(s string) string {
-	// Normalize entries so dedupe/removal behave well with "Name@Profile"
-	// and sloppy spacing like "Name @ Profile".
-	s = strings.ToLower(strings.TrimSpace(s))
-	if s == "" {
-		return ""
-	}
-
-	at := strings.LastIndex(s, "@")
-	if at <= 0 || at == len(s)-1 {
-		return s
-	}
-
-	name := strings.TrimSpace(s[:at])
-	profile := strings.TrimSpace(s[at+1:])
-	return name + "@" + profile
-}
-
-func uniquePreserveOrder(in []string) []string {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		key := memberKey(s)
-		if key == "" {
+func uniquePreserveOrder(charList []CharRef) []CharRef {
+	seen := map[CharRef]struct{}{}
+	out := make([]CharRef, 0, len(charList))
+	for _, char := range charList {
+		if _, ok := seen[char]; ok {
 			continue
 		}
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		out = append(out, s)
+		seen[char] = struct{}{}
+		out = append(out, char)
 	}
 	return out
 }
 
-// AddToGroup adds name to group, avoiding duplicates (case-insensitive).
-func AddToGroup(name, group string) error {
-	name = strings.TrimSpace(name)
+// AddToGroup adds a character reference to group, avoiding duplicates (case-insensitive).
+func AddToGroup(char CharRef, group string) error {
+	char, err := char.NormalizeRefStrict()
+	if err != nil {
+		return err
+	}
+
 	group = strings.TrimSpace(group)
-	if name == "" || group == "" {
-		return errors.New("both name and group are required")
+	if group == "" {
+		return errors.New("group name is required")
 	}
 
 	g, err := loadGroups()
@@ -135,23 +117,26 @@ func AddToGroup(name, group string) error {
 	}
 
 	list := g[group]
-	kname := memberKey(name)
 	for _, existing := range list {
-		if memberKey(existing) == kname {
+		if existing == char {
 			return saveGroups(g)
 		}
 	}
 
-	g[group] = append(list, kname)
+	g[group] = append(list, char)
 	return saveGroups(g)
 }
 
 // RemoveFromGroup removes name from group (case-insensitive). Returns true if removed.
-func RemoveFromGroup(name, group string) (bool, error) {
-	name = strings.TrimSpace(name)
+func RemoveFromGroup(char CharRef, group string) (bool, error) {
+	char, err := char.NormalizeRefStrict()
+	if err != nil {
+		return false, err
+	}
+
 	group = strings.TrimSpace(group)
-	if name == "" || group == "" {
-		return false, errors.New("both name and group are required")
+	if group == "" {
+		return false, errors.New("group name is required")
 	}
 
 	g, err := loadGroups()
@@ -165,11 +150,10 @@ func RemoveFromGroup(name, group string) (bool, error) {
 		return false, saveGroups(g)
 	}
 
-	kname := memberKey(name)
-	newList := make([]string, 0, len(list))
+	newList := make([]CharRef, 0, len(list))
 	removed := false
 	for _, existing := range list {
-		if memberKey(existing) == kname {
+		if existing == char {
 			removed = true
 			continue
 		}
@@ -187,7 +171,7 @@ func RemoveFromGroup(name, group string) (bool, error) {
 }
 
 // GroupMembers returns a group's members (deduped, original casing) sorted by insertion order.
-func GroupMembers(group string) ([]string, error) {
+func GroupMembers(group string) ([]CharRef, error) {
 	group = strings.TrimSpace(group)
 	if group == "" {
 		return nil, errors.New("group is required")
