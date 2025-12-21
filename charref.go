@@ -63,6 +63,7 @@ func parseCharRef(s, profile string) CharRef {
 
 func resolveProfileDir(baseDir string, currentSettingsFolder string, profileToken string) (string, error) {
 	settingsFolder := currentSettingsFolder
+	vlog("Profile token is: %s", profileToken)
 
 	// If no profile token provided just use the settings directory
 	if profileToken == "" {
@@ -75,7 +76,6 @@ func resolveProfileDir(baseDir string, currentSettingsFolder string, profileToke
 		if err != nil {
 			return "", err
 		}
-		vlog("Profile token is: %s", profileToken)
 		count := 0
 		found := false
 		for _, e := range dirs {

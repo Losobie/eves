@@ -49,6 +49,18 @@ func main() {
 		os.Exit(0)
 	}
 
+	dirs, err := os.ReadDir(baseDir)
+	if err != nil {
+		log.Fatalf("Error getting base dir: %v", err)
+	}
+
+	var profiles []string
+	for _, e := range dirs {
+		if e.IsDir() && strings.HasPrefix(e.Name(), "settings_") {
+			profiles = append(profiles, e.Name()[9:])
+		}
+	}
+
 	switch args[1] {
 	case "copy":
 		if len(args) != 4 {
@@ -135,6 +147,9 @@ func main() {
 			group := args[4]
 			currentProfile := config.SettingsFolder[9:]
 			charRef := parseCharRef(name, currentProfile)
+			if n, err := strconv.Atoi(charRef.Profile); err == nil && n < len(profiles) {
+				charRef.Profile = profiles[n]
+			}
 			if err := AddToGroup(charRef, group); err != nil {
 				fail(err)
 			}
@@ -150,6 +165,9 @@ func main() {
 			group := args[4]
 			currentProfile := config.SettingsFolder[9:]
 			charRef := parseCharRef(name, currentProfile)
+			if n, err := strconv.Atoi(charRef.Profile); err == nil && n < len(profiles) {
+				charRef.Profile = profiles[n]
+			}
 			removed, err := RemoveFromGroup(charRef, group)
 			if err != nil {
 				fail(err)
@@ -252,25 +270,18 @@ func main() {
 			}
 			return
 		case "list":
-			fmt.Printf("Profiles from %s\n", filepath.Dir(directory))
-
-			dirs, err := os.ReadDir(filepath.Dir(directory))
-			if err != nil {
-				fail(err)
-			}
+			vlog("Profiles from %s", filepath.Dir(directory))
 
 			count := 0
-			for _, e := range dirs {
-				if e.IsDir() && strings.HasPrefix(e.Name(), "settings_") {
-					var isCurrent string
-					if config.SettingsFolder == e.Name() {
-						isCurrent = "*"
-					} else {
-						isCurrent = ""
-					}
-					fmt.Printf("%s[%d] %s\n", isCurrent, count, e.Name()[9:])
-					count++
+			for _, e := range profiles {
+				var isCurrent string
+				if config.SettingsFolder[9:] == e {
+					isCurrent = "*"
+				} else {
+					isCurrent = ""
 				}
+				fmt.Printf("%s[%d] %s\n", isCurrent, count, e)
+				count++
 			}
 			return
 		default:
