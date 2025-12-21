@@ -90,10 +90,14 @@ func uniquePreserveOrder(charList []CharRef) []CharRef {
 	seen := map[CharRef]struct{}{}
 	out := make([]CharRef, 0, len(charList))
 	for _, char := range charList {
-		if _, ok := seen[char]; ok {
+		key := CharRef{
+			Name:    strings.ToLower(strings.TrimSpace(char.Name)),
+			Profile: strings.ToLower(strings.TrimSpace(char.Profile)),
+		}
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[char] = struct{}{}
+		seen[key] = struct{}{}
 		out = append(out, char)
 	}
 	return out
@@ -101,11 +105,14 @@ func uniquePreserveOrder(charList []CharRef) []CharRef {
 
 // AddToGroup adds a character reference to group, avoiding duplicates (case-insensitive).
 func AddToGroup(char CharRef, group string) error {
-	char, err := char.NormalizeRefStrict()
-	if err != nil {
-		return err
+	char.Name = strings.TrimSpace(char.Name)
+	if char.Name == "" {
+		return errors.New("character name is required")
 	}
-
+	char.Profile = strings.TrimSpace(char.Profile)
+	if char.Profile == "" {
+		return errors.New("character profile is required")
+	}
 	group = strings.TrimSpace(group)
 	if group == "" {
 		return errors.New("group name is required")
@@ -129,11 +136,14 @@ func AddToGroup(char CharRef, group string) error {
 
 // RemoveFromGroup removes name from group (case-insensitive). Returns true if removed.
 func RemoveFromGroup(char CharRef, group string) (bool, error) {
-	char, err := char.NormalizeRefStrict()
-	if err != nil {
-		return false, err
+	char.Name = strings.TrimSpace(char.Name)
+	if char.Name == "" {
+		return false, errors.New("character name is required")
 	}
-
+	char.Profile = strings.TrimSpace(char.Profile)
+	if char.Profile == "" {
+		return false, errors.New("character profile is required")
+	}
 	group = strings.TrimSpace(group)
 	if group == "" {
 		return false, errors.New("group name is required")
