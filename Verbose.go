@@ -8,7 +8,10 @@ import (
 var Verbose bool
 
 func vlog(format string, args ...any) {
-	if Verbose {
-		fmt.Fprintf(os.Stderr, "[verbose] "+format+"\n", args...)
+	if !Verbose {
+		return
 	}
+	fmt.Fprintf(os.Stderr, "[verbose] ")
+	fmt.Fprintf(os.Stderr, format, args...)
+	fmt.Fprintln(os.Stderr)
 }

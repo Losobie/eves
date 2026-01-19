@@ -5,11 +5,13 @@ import (
 	"io"
 	"log"
 	"losobie.com/eves/eveapi"
+	"losobie.com/eves/kvcache"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -352,6 +354,7 @@ func getLocalChars(directory, server, suffix string) map[string]string {
 		vlog("Found character id: %s", id)
 	}
 
+	cache := kvcache.New("cache/chars.json", 6*time.Hour)
 	api := eveapi.NewApi(server, suffix)
 
 	charMap := make(map[string]string)
@@ -361,7 +364,10 @@ func getLocalChars(directory, server, suffix string) map[string]string {
 		if err != nil {
 			log.Fatalf("Error converting account id %s to int: %v", id, err)
 		}
-		character, err := api.LookupCharacter(charId)
+
+		character, err := kvcache.GetOrLoad(cache, id, func() (eveapi.Character, error) {
+			return api.LookupCharacter(charId)
+		})
 
 		if err != nil {
 			log.Printf("Error looking up character for ID %s: %v", id, err)
@@ -430,15 +436,21 @@ func lookupLocal(directory, server, suffix string) {
 	}
 
 	for _, id := range charIds {
-		fmt.Println(id)
+		vlog("Found character id: %d", id)
 	}
 
 	alliances := make(map[int]*eveapi.Alliance)
 	corporations := make(map[int]*eveapi.Corporation)
+
+	charCache := kvcache.New("cache/chars.json", 6*time.Hour)
 	api := eveapi.NewApi(server, suffix)
 
 	for _, id := range charIds {
-		character, err := api.LookupCharacter(id)
+
+		character, err := kvcache.GetOrLoad(charCache, strconv.Itoa(id), func() (eveapi.Character, error) {
+			return api.LookupCharacter(id)
+		})
+
 		if err != nil {
 			log.Printf("Error looking up character for ID %d: %v", id, err)
 			continue
@@ -453,11 +465,14 @@ func lookupLocal(directory, server, suffix string) {
 		corporations[character.CorporationID] = nil
 	}
 
+	allianceCache := kvcache.New("cache/alliances.json", 6*time.Hour)
 	for key := range alliances {
 		if key == 0 {
 			continue
 		}
-		alliance, err := api.LookupAlliance(key)
+		alliance, err := kvcache.GetOrLoad(allianceCache, strconv.Itoa(key), func() (eveapi.Alliance, error) {
+			return api.LookupAlliance(key)
+		})
 		if err != nil {
 			log.Printf("Error looking up alliance for ID %d: %v", key, err)
 			continue
@@ -465,8 +480,11 @@ func lookupLocal(directory, server, suffix string) {
 		fmt.Printf("Alliance Name: %s\n", alliance.Name)
 	}
 
+	corpCache := kvcache.New("cache/corporations.json", 6*time.Hour)
 	for key := range corporations {
-		corporation, err := api.LookupCorporation(key)
+		corporation, err := kvcache.GetOrLoad(corpCache, strconv.Itoa(key), func() (eveapi.Corporation, error) {
+			return api.LookupCorporation(key)
+		})
 		if err != nil {
 			log.Printf("Error looking up corporation for ID %d: %v", key, err)
 			continue
