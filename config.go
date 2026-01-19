@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -19,33 +18,25 @@ type Config struct {
 
 func configFilePath(file string) (string, error) {
 	dir, err := os.UserConfigDir()
-	if err != nil || dir == "" {
-		home, _ := os.UserHomeDir()
-		if home == "" {
-			return "", errors.New("cannot determine user config dir")
-		}
-		switch runtime.GOOS {
-		case "windows":
-			dir = filepath.Join(home, "AppData", "Roaming")
-		case "darwin":
-			dir = filepath.Join(home, "Library", "Application Support")
-		default:
-			dir = filepath.Join(home, ".config")
-		}
+	if err != nil {
+		return "", err
 	}
-	appDir := filepath.Join(dir, "eves")
-	if err := os.MkdirAll(appDir, 0o755); err != nil {
-		return "", fmt.Errorf("create config dir: %w", err)
-	}
-	return filepath.Join(appDir, file), nil
+	return filepath.Join(dir, "eves", file), nil
 }
 
-var defaultConfig = `{
+const defaultConfig = `{
 	"server": "https://esi.evetech.net/latest/",
 	"server_suffix": "/?datasource=tranquility",
 	"eve_env": "c_ccp_eve_tq_tranquility",
 	"settings_folder": "settings_Default"
 }`
+
+func init() {
+	var v any
+	if err := json.Unmarshal([]byte(defaultConfig), &v); err != nil {
+		panic("defaultConfig is invalid JSON: " + err.Error())
+	}
+}
 
 func LoadConfig() (*Config, error) {
 	path, err := configFilePath("config.json")
@@ -59,35 +50,28 @@ func LoadConfig() (*Config, error) {
 	// Open and read the file
 	file, err := os.Open(path)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, err
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("open config %s: %w", path, err)
 		}
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("make config path %s: %w", path, err)
 		}
 		if err := os.WriteFile(path, []byte(defaultConfig), 0o644); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("write default config %s: %w", path, err)
 		}
 		file, err = os.Open(path)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("open default config %s: %w", path, err)
 		}
 		vlog("Created new config file: %s", path)
 	}
 	defer file.Close()
 
-	// Read the file into a byte slice
-	bytes, err := io.ReadAll(file)
-	if err != nil {
+	dec := json.NewDecoder(file)
+	dec.DisallowUnknownFields() // optional but very nice for catching typos
+	if err := dec.Decode(&config); err != nil {
 		return nil, err
 	}
-
-	// Unmarshal the JSON data into the Config struct
-	err = json.Unmarshal(bytes, &config)
-	if err != nil {
-		return nil, err
-	}
-
 	return &config, nil
 }
 
@@ -97,12 +81,16 @@ func SaveConfig(config *Config) error {
 		return err
 	}
 	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("make config dir %s: %w", dir, err)
+	}
 
 	// Create temp in the same dir
 	tmp, err := os.CreateTemp(dir, "config-*.tmp")
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
 	}
+	_ = tmp.Chmod(0o600)
 	tmpPath := tmp.Name()
 
 	// Ensure cleanup on any failure.

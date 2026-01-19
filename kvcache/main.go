@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
 )
@@ -28,20 +27,8 @@ type Cache struct {
 
 func configFilePath(file string) string {
 	dir, err := os.UserConfigDir()
-	if err != nil || dir == "" {
-		home, _ := os.UserHomeDir()
-		if home == "" {
-			dir = "."
-		} else {
-			switch runtime.GOOS {
-			case "windows":
-				dir = filepath.Join(home, "AppData", "Roaming")
-			case "darwin":
-				dir = filepath.Join(home, "Library", "Application Support")
-			default:
-				dir = filepath.Join(home, ".config")
-			}
-		}
+	if err != nil {
+		dir = "."
 	}
 	return filepath.Join(dir, "eves", file)
 }
