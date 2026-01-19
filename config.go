@@ -13,7 +13,6 @@ import (
 type Config struct {
 	Server         string `json:"server"`
 	ServerSuffix   string `json:"server_suffix"`
-	EvePath        string `json:"eve_path"`
 	EveEnv         string `json:"eve_env"`
 	SettingsFolder string `json:"settings_folder"`
 }
@@ -41,6 +40,13 @@ func configFilePath(file string) (string, error) {
 	return filepath.Join(appDir, file), nil
 }
 
+var defaultConfig = `{
+	"server": "https://esi.evetech.net/latest/",
+	"server_suffix": "/?datasource=tranquility",
+	"eve_env": "c_ccp_eve_tq_tranquility",
+	"settings_folder": "settings_Default"
+}`
+
 func LoadConfig() (*Config, error) {
 	path, err := configFilePath("config.json")
 	if err != nil {
@@ -53,7 +59,20 @@ func LoadConfig() (*Config, error) {
 	// Open and read the file
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(path, []byte(defaultConfig), 0o644); err != nil {
+			return nil, err
+		}
+		file, err = os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		vlog("Created new config file: %s", path)
 	}
 	defer file.Close()
 
