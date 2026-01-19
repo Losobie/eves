@@ -1,6 +1,0 @@
-{
-	"server": "https://esi.evetech.net/latest/",
-	"server_suffix": "/?datasource=tranquility",
-	"eve_env": "c_ccp_eve_tq_tranquility",
-	"settings_folder": "settings_Default"
-}
