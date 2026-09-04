@@ -66,14 +66,39 @@ func main() {
 
 	switch args[1] {
 	case "account":
-		if len(args) != 3 || args[2] != "detect" {
+		if len(args) < 3 {
 			dieAccountUsage()
 		}
-		stop := make(chan os.Signal, 1)
-		signal.Notify(stop, os.Interrupt)
-		defer signal.Stop(stop)
-		if err := detectAccounts(baseDir, os.Stdin, os.Stdout, stop); err != nil {
-			fail(err)
+		switch args[2] {
+		case "list":
+			if len(args) != 3 {
+				dieAccountUsage()
+			}
+			if err := listAccounts(baseDir, os.Stdout); err != nil {
+				fail(err)
+			}
+		case "detect":
+			if len(args) != 3 {
+				dieAccountUsage()
+			}
+			stop := make(chan os.Signal, 1)
+			signal.Notify(stop, os.Interrupt)
+			defer signal.Stop(stop)
+			if err := detectAccounts(baseDir, os.Stdin, os.Stdout, stop); err != nil {
+				fail(err)
+			}
+		case "set":
+			if len(args) < 5 {
+				dieAccountUsage()
+			}
+			id := args[3]
+			name := strings.Join(args[4:], " ")
+			if err := setAccountName(id, name); err != nil {
+				fail(err)
+			}
+			fmt.Printf("Set account %s name to %q.\n", id, strings.TrimSpace(name))
+		default:
+			dieAccountUsage()
 		}
 		return
 	case "copy":
@@ -520,6 +545,8 @@ usage:
 func dieAccountUsage() {
 	fmt.Fprintf(os.Stderr, strings.TrimSpace(`
 usage:
+  eves account list
+  eves account set <account-id> <name>
   eves account detect
 `)+"\n")
 	os.Exit(2)

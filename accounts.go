@@ -29,6 +29,7 @@ type accountNameResult struct {
 }
 
 var accountFilePattern = regexp.MustCompile(`^core_user_(\d+)\.dat$`)
+var accountIDPattern = regexp.MustCompile(`^\d+$`)
 
 func loadAccounts() (Accounts, error) {
 	path, err := configFilePath("accounts.json")
@@ -106,6 +107,24 @@ func saveAccounts(accounts Accounts) error {
 	return nil
 }
 
+func setAccountName(id, name string) error {
+	id = strings.TrimSpace(id)
+	if !accountIDPattern.MatchString(id) {
+		return errors.New("account ID must contain only digits")
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return errors.New("account name is required")
+	}
+
+	accounts, err := loadAccounts()
+	if err != nil {
+		return err
+	}
+	accounts[id] = name
+	return saveAccounts(accounts)
+}
+
 func scanAccountFiles(baseDir string, associated Accounts) (map[string]accountFileState, error) {
 	profiles, err := os.ReadDir(baseDir)
 	if err != nil {
@@ -169,6 +188,37 @@ func changedAccountFiles(previous, current map[string]accountFileState) []accoun
 		changed = append(changed, changedByID[id])
 	}
 	return changed
+}
+
+func listAccounts(baseDir string, output io.Writer) error {
+	accounts, err := loadAccounts()
+	if err != nil {
+		return err
+	}
+	states, err := scanAccountFiles(baseDir, Accounts{})
+	if err != nil {
+		return err
+	}
+
+	accountIDs := make(map[string]struct{})
+	for _, state := range states {
+		accountIDs[state.id] = struct{}{}
+	}
+
+	ids := make([]string, 0, len(accountIDs))
+	for id := range accountIDs {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	for _, id := range ids {
+		if name := accounts[id]; name != "" {
+			fmt.Fprintf(output, "%s (%s)\n", id, name)
+			continue
+		}
+		fmt.Fprintln(output, id)
+	}
+	return nil
 }
 
 func detectAccounts(baseDir string, input io.Reader, output io.Writer, stop <-chan os.Signal) error {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -84,5 +85,83 @@ func TestChangedAccountFilesDeduplicatesIDsAcrossProfiles(t *testing.T) {
 	changed := changedAccountFiles(previous, current)
 	if len(changed) != 2 || changed[0].id != "2" || changed[1].id != "3" {
 		t.Fatalf("changedAccountFiles() IDs = [%s %s], want [2 3]", changed[0].id, changed[1].id)
+	}
+}
+
+func TestListAccountsIncludesNamedAndUnnamedAccounts(t *testing.T) {
+	configHome := t.TempDir()
+	if runtime.GOOS == "windows" {
+		t.Setenv("AppData", configHome)
+	} else {
+		t.Setenv("XDG_CONFIG_HOME", configHome)
+	}
+
+	dir := t.TempDir()
+	for _, profile := range []string{"settings_Default", "settings_Second"} {
+		if err := os.Mkdir(filepath.Join(dir, profile), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, path := range []string{
+		filepath.Join(dir, "settings_Default", "core_user_12345.dat"),
+		filepath.Join(dir, "settings_Default", "core_user_67890.dat"),
+		filepath.Join(dir, "settings_Second", "core_user_12345.dat"),
+	} {
+		if err := os.WriteFile(path, []byte("settings"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := saveAccounts(Accounts{"12345": "Name"}); err != nil {
+		t.Fatal(err)
+	}
+
+	var output bytes.Buffer
+	if err := listAccounts(dir, &output); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := output.String(), "12345 (Name)\n67890\n"; got != want {
+		t.Fatalf("listAccounts() output = %q, want %q", got, want)
+	}
+}
+
+func TestSetAccountNameCreatesAndReplacesAssignment(t *testing.T) {
+	configHome := t.TempDir()
+	if runtime.GOOS == "windows" {
+		t.Setenv("AppData", configHome)
+	} else {
+		t.Setenv("XDG_CONFIG_HOME", configHome)
+	}
+
+	if err := setAccountName("12345", " First Name "); err != nil {
+		t.Fatal(err)
+	}
+	if err := setAccountName("12345", "Second Name"); err != nil {
+		t.Fatal(err)
+	}
+
+	accounts, err := loadAccounts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := accounts["12345"], "Second Name"; got != want {
+		t.Fatalf("account name = %q, want %q", got, want)
+	}
+}
+
+func TestSetAccountNameRejectsInvalidValues(t *testing.T) {
+	tests := []struct {
+		name string
+		id   string
+		want string
+	}{
+		{name: "non-numeric ID", id: "abc", want: "Name"},
+		{name: "empty name", id: "12345", want: "  "},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := setAccountName(test.id, test.want); err == nil {
+				t.Fatal("setAccountName() succeeded, want error")
+			}
+		})
 	}
 }

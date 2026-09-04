@@ -1,5 +1,21 @@
 # Usage
 
+## List Accounts
+
+List the account IDs found in the current EVE settings profiles. Accounts with an assigned name include it in parentheses; unassigned accounts are shown by ID only.
+
+```text
+eves account list
+```
+
+## Set an Account Name
+
+Assign or replace a name for an account ID manually.
+
+```text
+eves account set 12345 "Name"
+```
+
 ## Detect Account Settings
 
 Watch all EVE settings profiles for the next modified account settings file and associate it with an account name. Associations apply across every profile, and detection continues until Ctrl+C.
