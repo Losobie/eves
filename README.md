@@ -1,5 +1,13 @@
 # Usage
 
+## Detect Account Settings
+
+Watch all EVE settings profiles for the next modified account settings file and associate it with an account name. Associations apply across every profile, and detection continues until Ctrl+C.
+
+```text
+eves account detect
+```
+
 ## Lookup
 
 ### All Local Characters

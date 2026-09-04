@@ -7,6 +7,7 @@ import (
 	"losobie.com/eves/eveapi"
 	"losobie.com/eves/kvcache"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -64,6 +65,17 @@ func main() {
 	}
 
 	switch args[1] {
+	case "account":
+		if len(args) != 3 || args[2] != "detect" {
+			dieAccountUsage()
+		}
+		stop := make(chan os.Signal, 1)
+		signal.Notify(stop, os.Interrupt)
+		defer signal.Stop(stop)
+		if err := detectAccounts(baseDir, os.Stdin, os.Stdout, stop); err != nil {
+			fail(err)
+		}
+		return
 	case "copy":
 		if len(args) != 4 {
 			dieCopyUsage()
@@ -501,6 +513,14 @@ usage:
   eves group list
   eves group list <group>
   eves group delete <group>
+`)+"\n")
+	os.Exit(2)
+}
+
+func dieAccountUsage() {
+	fmt.Fprintf(os.Stderr, strings.TrimSpace(`
+usage:
+  eves account detect
 `)+"\n")
 	os.Exit(2)
 }
