@@ -97,6 +97,13 @@ func main() {
 				fail(err)
 			}
 			fmt.Printf("Set account %s name to %q.\n", id, strings.TrimSpace(name))
+		case "copy":
+			if len(args) != 5 {
+				dieAccountUsage()
+			}
+			if err := copyAccountSettings(baseDir, config.SettingsFolder, args[3], args[4]); err != nil {
+				fail(err)
+			}
 		default:
 			dieAccountUsage()
 		}
@@ -547,6 +554,7 @@ func dieAccountUsage() {
 usage:
   eves account list
   eves account set <account-id> <name>
+  eves account copy <source-id-or-name>[@profile] <target-id-or-name>[@profile]
   eves account detect
 `)+"\n")
 	os.Exit(2)

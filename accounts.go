@@ -125,6 +125,93 @@ func setAccountName(id, name string) error {
 	return saveAccounts(accounts)
 }
 
+func resolveAccountID(accounts Accounts, ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return "", errors.New("account ID or name is required")
+	}
+	if accountIDPattern.MatchString(ref) {
+		return ref, nil
+	}
+
+	var matches []string
+	for id, name := range accounts {
+		if strings.EqualFold(name, ref) {
+			matches = append(matches, id)
+		}
+	}
+	sort.Strings(matches)
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("account not found: %q", ref)
+	case 1:
+		return matches[0], nil
+	default:
+		return "", fmt.Errorf("account name %q is ambiguous; it is assigned to IDs %s", ref, strings.Join(matches, ", "))
+	}
+}
+
+func copyAccountSettings(baseDir, currentSettingsFolder, sourceRef, targetRef string) error {
+	accounts, err := loadAccounts()
+	if err != nil {
+		return err
+	}
+	sourceAccount := parseCharRef(sourceRef, currentSettingsFolder)
+	targetAccount := parseCharRef(targetRef, currentSettingsFolder)
+	sourceDir, err := resolveProfileDir(baseDir, currentSettingsFolder, sourceAccount.Profile)
+	if err != nil {
+		return fmt.Errorf("resolve source profile: %w", err)
+	}
+	targetDir, err := resolveProfileDir(baseDir, currentSettingsFolder, targetAccount.Profile)
+	if err != nil {
+		return fmt.Errorf("resolve target profile: %w", err)
+	}
+	sourceID, err := resolveAccountID(accounts, sourceAccount.Name)
+	if err != nil {
+		return fmt.Errorf("resolve source account: %w", err)
+	}
+	targetID, err := resolveAccountID(accounts, targetAccount.Name)
+	if err != nil {
+		return fmt.Errorf("resolve target account: %w", err)
+	}
+	sourcePath := filepath.Join(sourceDir, fmt.Sprintf("core_user_%s.dat", sourceID))
+	targetPath := filepath.Join(targetDir, fmt.Sprintf("core_user_%s.dat", targetID))
+	if sourcePath == targetPath {
+		return nil
+	}
+
+	vlog("Copying account settings from %s to %s", sourcePath, targetPath)
+
+	source, err := os.Open(sourcePath)
+	if err != nil {
+		return fmt.Errorf("open source account settings %s: %w", sourcePath, err)
+	}
+	defer source.Close()
+
+	targetInfo, err := os.Stat(targetPath)
+	if err != nil {
+		return fmt.Errorf("inspect target account settings %s: %w", targetPath, err)
+	}
+	sourceInfo, err := source.Stat()
+	if err != nil {
+		return fmt.Errorf("inspect source account settings %s: %w", sourcePath, err)
+	}
+	// Paths with different casing or aliases can still refer to the same file.
+	if os.SameFile(sourceInfo, targetInfo) {
+		return nil
+	}
+	target, err := os.Create(targetPath)
+	if err != nil {
+		return fmt.Errorf("open target account settings %s: %w", targetPath, err)
+	}
+	defer target.Close()
+
+	if _, err := io.Copy(target, source); err != nil {
+		return fmt.Errorf("copy account settings: %w", err)
+	}
+	return nil
+}
+
 func scanAccountFiles(baseDir string, associated Accounts) (map[string]accountFileState, error) {
 	profiles, err := os.ReadDir(baseDir)
 	if err != nil {

@@ -16,6 +16,20 @@ Assign or replace a name for an account ID manually.
 eves account set 12345 "Name"
 ```
 
+## Copy Account Settings
+
+Copy account settings within or across profiles. The source and target can each be an account ID or an assigned name, optionally followed by `@profile`. Profiles accept a name (with or without `settings_`) or a zero-based index from `eves profile list`. When omitted, each side uses the current profile.
+
+```text
+eves account copy 12345 67890
+eves account copy "Primary Account" "Secondary Account"
+eves account copy "Primary Account" 67890
+eves account copy "Primary Account@Default" "Secondary Account@PvP"
+eves account copy "12345@Default" "12345@PvP"
+```
+
+The destination settings file must already exist and is overwritten in full. Copying is skipped only when both references resolve to the same file.
+
 ## Detect Account Settings
 
 Watch all EVE settings profiles for the next modified account settings file and associate it with an account name. Associations apply across every profile, and detection continues until Ctrl+C.

@@ -165,3 +165,155 @@ func TestSetAccountNameRejectsInvalidValues(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveAccountIDByIDOrName(t *testing.T) {
+	accounts := Accounts{"12345": "Primary Account", "67890": "Secondary Account"}
+	tests := []struct {
+		ref  string
+		want string
+	}{
+		{ref: "12345", want: "12345"},
+		{ref: "Primary Account", want: "12345"},
+		{ref: "secondary account", want: "67890"},
+	}
+	for _, test := range tests {
+		t.Run(test.ref, func(t *testing.T) {
+			got, err := resolveAccountID(accounts, test.ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != test.want {
+				t.Fatalf("resolveAccountID() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestResolveAccountIDRejectsAmbiguousName(t *testing.T) {
+	accounts := Accounts{"12345": "Shared", "67890": "shared"}
+	if _, err := resolveAccountID(accounts, "Shared"); err == nil {
+		t.Fatal("resolveAccountID() succeeded, want ambiguity error")
+	}
+}
+
+func TestCopyAccountSettingsUsingNamesAndIDs(t *testing.T) {
+	configHome := t.TempDir()
+	if runtime.GOOS == "windows" {
+		t.Setenv("AppData", configHome)
+	} else {
+		t.Setenv("XDG_CONFIG_HOME", configHome)
+	}
+	if err := saveAccounts(Accounts{"12345": "Primary", "67890": "Secondary"}); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	profileDir := filepath.Join(dir, "settings_Default")
+	if err := os.Mkdir(profileDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(profileDir, "core_user_12345.dat")
+	targetPath := filepath.Join(profileDir, "core_user_67890.dat")
+	if err := os.WriteFile(sourcePath, []byte("source settings"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(targetPath, []byte("target settings"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := copyAccountSettings(dir, "settings_Default", "Primary", "67890"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(targetPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "source settings"; string(got) != want {
+		t.Fatalf("target settings = %q, want %q", got, want)
+	}
+}
+
+func TestCopyAccountSettingsProfiles(t *testing.T) {
+	configHome := t.TempDir()
+	if runtime.GOOS == "windows" {
+		t.Setenv("AppData", configHome)
+	} else {
+		t.Setenv("XDG_CONFIG_HOME", configHome)
+	}
+	if err := saveAccounts(Accounts{"12345": "Primary", "67890": "Secondary"}); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name, source, target, targetProfile, targetID string
+		wantError                                     bool
+	}{
+		{"same account across profiles", "12345@Default", "12345@PvP", "PvP", "12345", false},
+		{"names across profiles", "Primary@Default", "Secondary@PvP", "PvP", "67890", false},
+		{"default source profile", "Primary", "67890@PvP", "PvP", "67890", false},
+		{"default target profile", "Primary@Default", "Secondary", "Default", "67890", false},
+		{"profile indices", "12345@0", "67890@1", "PvP", "67890", false},
+		{"same file with profile aliases", "Primary@Default", "12345@settings_Default", "Default", "12345", false},
+		{"same file with index", "12345", "Primary@0", "Default", "12345", false},
+		{"invalid source index", "12345@9", "67890", "Default", "67890", true},
+		{"invalid target index", "12345", "67890@9", "Default", "67890", true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, profile := range []string{"Default", "PvP"} {
+				if err := os.Mkdir(filepath.Join(dir, "settings_"+profile), 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			sourcePath := filepath.Join(dir, "settings_Default", "core_user_12345.dat")
+			targetPath := filepath.Join(dir, "settings_"+test.targetProfile, "core_user_"+test.targetID+".dat")
+			if err := os.WriteFile(targetPath, []byte("old target settings"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(sourcePath, []byte("source settings"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			err := copyAccountSettings(dir, "settings_Default", test.source, test.target)
+			if (err != nil) != test.wantError {
+				t.Fatalf("copyAccountSettings() error = %v, wantError %v", err, test.wantError)
+			}
+			wantTarget := "source settings"
+			if test.wantError {
+				wantTarget = "old target settings"
+			}
+			for path, want := range map[string]string{sourcePath: "source settings", targetPath: wantTarget} {
+				got, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(got) != want {
+					t.Errorf("settings at %s = %q, want %q", path, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestCopyAccountSettingsRequiresExistingTarget(t *testing.T) {
+	configHome := t.TempDir()
+	if runtime.GOOS == "windows" {
+		t.Setenv("AppData", configHome)
+	} else {
+		t.Setenv("XDG_CONFIG_HOME", configHome)
+	}
+
+	dir := t.TempDir()
+	profileDir := filepath.Join(dir, "settings_Default")
+	if err := os.Mkdir(profileDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(profileDir, "core_user_12345.dat"), []byte("settings"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := copyAccountSettings(dir, "settings_Default", "12345", "67890"); err == nil {
+		t.Fatal("copyAccountSettings() succeeded, want missing target error")
+	}
+	if _, err := os.Stat(filepath.Join(profileDir, "core_user_67890.dat")); !os.IsNotExist(err) {
+		t.Fatalf("target was unexpectedly created: %v", err)
+	}
+}
