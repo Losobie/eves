@@ -40,11 +40,43 @@ eves account detect
 
 ## Lookup
 
-### All Local Characters
-eves lookup [--all, -a]
+List characters in the selected profile and their corporations and alliances, resolving IDs to names. These commands produce the same output:
 
-### Specific Character
-eves lookup [CHAR_NAME]
+```text
+eves
+eves lookup
+eves lookup -a
+eves lookup --all
+```
+
+Filter the list by type:
+
+```text
+eves lookup -c
+eves lookup --characters
+eves lookup --corporations
+eves lookup --alliances
+```
+
+Look up one character, corporation, or alliance by its exact name (case-insensitive), including entries outside the selected profile:
+
+```text
+eves lookup "Character Name"
+eves lookup "Corporation Name"
+eves lookup "Alliance Name"
+```
+
+Each result includes its type, name, and ID. Lists are sorted by type and name, with shared corporations and alliances shown once. Name-to-ID mappings last seven days; full records, including corporation and alliance membership, last six hours. Lists that need affiliations refresh those records independently of the name cache. Unknown names and failed requests return an error.
+
+Use `--refresh` to bypass cached data for the requested lookup and save fresh results:
+
+```text
+eves lookup --refresh
+eves lookup --characters --refresh
+eves lookup "Character Name" --refresh
+```
+
+Normal cache reads do not extend expiration. Existing cached records retain their original expiration until refreshed.
 
 ## Backup Configurations
 

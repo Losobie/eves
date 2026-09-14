@@ -47,9 +47,15 @@ func main() {
 	baseDir := filepath.Join(cacheDir, "CCP", "EVE", config.EveEnv)
 	directory := filepath.Join(baseDir, config.SettingsFolder)
 
-	if len(args) == 1 {
-		lookupLocal(directory, config.Server, config.ServerSuffix)
-		os.Exit(0)
+	if len(args) == 1 || args[1] == "lookup" {
+		var lookupArgs []string
+		if len(args) > 1 {
+			lookupArgs = args[2:]
+		}
+		if err := runLookup(directory, newLookupService(config.Server, config.ServerSuffix), lookupArgs, os.Stdout); err != nil {
+			fail(err)
+		}
+		return
 	}
 
 	dirs, err := os.ReadDir(baseDir)
@@ -432,109 +438,6 @@ func resolveCharID(directory, server, suffix, name string) (string, error) {
 		return id, nil
 	}
 	return "", fmt.Errorf("character not found in profile directory %s: %q", directory, name)
-}
-
-func lookupLocal(directory, server, suffix string) {
-	rexChar := regexp.MustCompile(`^core_char_(\d+)\.dat$`)
-	rexUser := regexp.MustCompile(`^core_user_(\d+)\.dat$`)
-
-	var charIds []int
-	var accountIds []int
-	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Check if the current file matches the pattern
-		if info.IsDir() {
-			return nil
-		}
-
-		if rexChar.MatchString(info.Name()) {
-			matches := rexChar.FindStringSubmatch(info.Name())
-			if len(matches) > 1 {
-				id, err := strconv.Atoi(matches[1])
-				if err != nil {
-					log.Fatalf("Error converting character id %s to int: %v", matches[1], err)
-				}
-				charIds = append(charIds, id)
-			}
-		}
-
-		if rexUser.MatchString(info.Name()) {
-			matches := rexUser.FindStringSubmatch(info.Name())
-			if len(matches) > 1 {
-				id, err := strconv.Atoi(matches[1])
-				if err != nil {
-					log.Fatalf("Error converting account id %s to int: %v", matches[1], err)
-				}
-				accountIds = append(accountIds, id)
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		log.Fatalf("Error walking the path %q: %v\n", directory, err)
-	}
-
-	for _, id := range charIds {
-		vlog("Found character id: %d", id)
-	}
-
-	alliances := make(map[int]*eveapi.Alliance)
-	corporations := make(map[int]*eveapi.Corporation)
-
-	charCache := kvcache.New("cache/chars.json", 6*time.Hour)
-	api := eveapi.NewApi(server, suffix)
-
-	for _, id := range charIds {
-
-		character, err := kvcache.GetOrLoad(charCache, strconv.Itoa(id), func() (eveapi.Character, error) {
-			return api.LookupCharacter(id)
-		})
-
-		if err != nil {
-			log.Printf("Error looking up character for ID %d: %v", id, err)
-			continue
-		}
-		if len(character.Name) == 0 {
-			continue
-		}
-		fmt.Printf("Character Name: %s (%d)\n", character.Name, id)
-		if character.AllianceID != nil {
-			alliances[*character.AllianceID] = nil
-		}
-		corporations[character.CorporationID] = nil
-	}
-
-	allianceCache := kvcache.New("cache/alliances.json", 6*time.Hour)
-	for key := range alliances {
-		if key == 0 {
-			continue
-		}
-		alliance, err := kvcache.GetOrLoad(allianceCache, strconv.Itoa(key), func() (eveapi.Alliance, error) {
-			return api.LookupAlliance(key)
-		})
-		if err != nil {
-			log.Printf("Error looking up alliance for ID %d: %v", key, err)
-			continue
-		}
-		fmt.Printf("Alliance Name: %s\n", alliance.Name)
-	}
-
-	corpCache := kvcache.New("cache/corporations.json", 6*time.Hour)
-	for key := range corporations {
-		corporation, err := kvcache.GetOrLoad(corpCache, strconv.Itoa(key), func() (eveapi.Corporation, error) {
-			return api.LookupCorporation(key)
-		})
-		if err != nil {
-			log.Printf("Error looking up corporation for ID %d: %v", key, err)
-			continue
-		}
-		fmt.Printf("Corporation Name: %s\n", corporation.Name)
-	}
 }
 
 func dieGroupUsage() {

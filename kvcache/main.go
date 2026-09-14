@@ -72,6 +72,26 @@ func Get[V any](c *Cache, key string) (V, error) {
 	return zero, nil
 }
 
+// Entries returns a snapshot of valid cached values, omitting expired or corrupt entries.
+func Entries[V any](c *Cache) (map[string]V, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := c.loadLocked(); err != nil {
+		return nil, err
+	}
+	values := make(map[string]V)
+	for key, e := range c.entries {
+		if isExpired(e) {
+			continue
+		}
+		var value V
+		if err := json.Unmarshal(e.Value, &value); err == nil {
+			values[key] = value
+		}
+	}
+	return values, nil
+}
+
 // Put stores v under key with an expiry timestamp based on the cache TTL.
 func Put[V any](c *Cache, key string, v V) error {
 	c.mu.Lock()
