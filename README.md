@@ -16,10 +16,18 @@ eves group --help
 Help for an unknown command falls back to general help. Help does not require
 configuration or a local EVE installation.
 
-There is no active-profile setting or `profile` command. Copy and group
+There is no active-profile setting. Copy and group
 references without `@profile` use `Default`; lookup lists scan all profiles.
-Existing configuration files automatically drop the retired `settings_folder`
-field when loaded, preserving the other settings.
+
+## List Profiles
+
+```text
+eves profile list
+```
+
+Lists profile names and zero-based indices in alphabetical order for use in
+`@profile` references. Only listing is supported; there is no `profile get` or
+`profile set` command.
 
 ## List Accounts
 

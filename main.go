@@ -69,6 +69,15 @@ func main() {
 	}
 
 	switch args[1] {
+	case "profile":
+		if len(args) != 3 || args[2] != "list" {
+			fmt.Fprintln(os.Stderr, "usage: eves profile list")
+			os.Exit(2)
+		}
+		for index, name := range profiles {
+			fmt.Printf("[%d] %s\n", index, name)
+		}
+		return
 	case "account":
 		if len(args) < 3 {
 			dieAccountUsage()

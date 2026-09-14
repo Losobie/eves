@@ -3,11 +3,10 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
-func TestConfigRetiresSettingsFolder(t *testing.T) {
+func TestConfigLoadsCurrentFields(t *testing.T) {
 	isolateLookupCache(t)
 	path, err := configFilePath("config.json")
 	if err != nil {
@@ -16,7 +15,7 @@ func TestConfigRetiresSettingsFolder(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte(`{"server":"https://example.test/","server_suffix":"/","eve_env":"custom","settings_folder":"settings_PvP"}`), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(`{"server":"https://example.test/","server_suffix":"/","eve_env":"custom"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	config, err := LoadConfig()
@@ -25,13 +24,6 @@ func TestConfigRetiresSettingsFolder(t *testing.T) {
 	}
 	if config.EveEnv != "custom" || config.Server != "https://example.test/" || config.ServerSuffix != "/" {
 		t.Fatalf("config changed: %+v", config)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(data), "settings_folder") {
-		t.Fatal("retired field still persisted")
 	}
 	if _, err := LoadConfig(); err != nil {
 		t.Fatal(err)

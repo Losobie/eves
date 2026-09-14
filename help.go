@@ -15,7 +15,7 @@ Commands:
   account  List, name, detect, and copy account settings
   copy     Copy character settings to a character or group
   group    Manage groups of characters
-
+  profile  List EVE settings profiles
 
 Options:
   --help         Show help for the command given as the first argument
@@ -25,6 +25,13 @@ Run eves <command> --help for command details.
 Running eves without arguments shows this help.`
 
 var commandHelp = map[string]string{
+	"profile": `List EVE settings profiles in the configured environment.
+
+Usage: eves profile list
+
+Shows profile names and zero-based indices in alphabetical order.
+Use a name or index in @profile references. There is no active profile;
+references without @profile use Default.`,
 	"lookup": `Look up characters, corporations, and alliances.
 
 Usage: eves lookup [--refresh] [--all|-a|--characters|-c|--corporations|--alliances|<name>]

@@ -67,21 +67,8 @@ func LoadConfig() (*Config, error) {
 
 	dec := json.NewDecoder(file)
 	dec.DisallowUnknownFields() // optional but very nice for catching typos
-	// Accept the retired field only to migrate older configurations.
-	legacy := struct {
-		*Config
-		SettingsFolder json.RawMessage `json:"settings_folder"`
-	}{Config: &config}
-	if err := dec.Decode(&legacy); err != nil {
+	if err := dec.Decode(&config); err != nil {
 		return nil, err
-	}
-	if len(legacy.SettingsFolder) > 0 {
-		if err := file.Close(); err != nil {
-			return nil, err
-		}
-		if err := SaveConfig(&config); err != nil {
-			return nil, fmt.Errorf("remove retired settings_folder: %w", err)
-		}
 	}
 	return &config, nil
 }
