@@ -29,6 +29,9 @@ func main() {
 		}
 	}
 	args = clean
+	if showHelp(args[1:], os.Stdout) {
+		return
+	}
 
 	for i, a := range args {
 		vlog("args[%d]: %q", i, a)
@@ -47,12 +50,8 @@ func main() {
 	baseDir := filepath.Join(cacheDir, "CCP", "EVE", config.EveEnv)
 	directory := filepath.Join(baseDir, config.SettingsFolder)
 
-	if len(args) == 1 || args[1] == "lookup" {
-		var lookupArgs []string
-		if len(args) > 1 {
-			lookupArgs = args[2:]
-		}
-		if err := runLookup(directory, newLookupService(config.Server, config.ServerSuffix), lookupArgs, os.Stdout); err != nil {
+	if args[1] == "lookup" {
+		if err := runLookup(directory, newLookupService(config.Server, config.ServerSuffix), args[2:], os.Stdout); err != nil {
 			fail(err)
 		}
 		return

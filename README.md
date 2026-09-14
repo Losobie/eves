@@ -1,5 +1,21 @@
 # Usage
 
+## Help
+
+Running `eves` without arguments shows general help. Use `--help` anywhere
+after a command to show help for that first command, without running it:
+
+```text
+eves
+eves --help
+eves lookup --help
+eves account copy --help
+eves profile set Default --help
+```
+
+Help for an unknown command falls back to general help. Help does not require
+configuration or a local EVE installation.
+
 ## List Accounts
 
 List the account IDs found in the current EVE settings profiles. Accounts with an assigned name include it in parentheses; unassigned accounts are shown by ID only.
@@ -43,7 +59,6 @@ eves account detect
 List characters in the selected profile and their corporations and alliances, resolving IDs to names. These commands produce the same output:
 
 ```text
-eves
 eves lookup
 eves lookup -a
 eves lookup --all
