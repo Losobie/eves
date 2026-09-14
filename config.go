@@ -10,10 +10,9 @@ import (
 )
 
 type Config struct {
-	Server         string `json:"server"`
-	ServerSuffix   string `json:"server_suffix"`
-	EveEnv         string `json:"eve_env"`
-	SettingsFolder string `json:"settings_folder"`
+	Server       string `json:"server"`
+	ServerSuffix string `json:"server_suffix"`
+	EveEnv       string `json:"eve_env"`
 }
 
 func configFilePath(file string) (string, error) {
@@ -27,8 +26,7 @@ func configFilePath(file string) (string, error) {
 const defaultConfig = `{
 	"server": "https://esi.evetech.net/latest/",
 	"server_suffix": "/?datasource=tranquility",
-	"eve_env": "c_ccp_eve_tq_tranquility",
-	"settings_folder": "settings_Default"
+	"eve_env": "c_ccp_eve_tq_tranquility"
 }`
 
 func init() {
@@ -69,8 +67,21 @@ func LoadConfig() (*Config, error) {
 
 	dec := json.NewDecoder(file)
 	dec.DisallowUnknownFields() // optional but very nice for catching typos
-	if err := dec.Decode(&config); err != nil {
+	// Accept the retired field only to migrate older configurations.
+	legacy := struct {
+		*Config
+		SettingsFolder json.RawMessage `json:"settings_folder"`
+	}{Config: &config}
+	if err := dec.Decode(&legacy); err != nil {
 		return nil, err
+	}
+	if len(legacy.SettingsFolder) > 0 {
+		if err := file.Close(); err != nil {
+			return nil, err
+		}
+		if err := SaveConfig(&config); err != nil {
+			return nil, fmt.Errorf("remove retired settings_folder: %w", err)
+		}
 	}
 	return &config, nil
 }

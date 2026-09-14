@@ -26,6 +26,69 @@ func isolateLookupCache(t *testing.T) {
 	}
 }
 
+func lookupTestProfile(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "settings_Default")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestLookupAcrossProfiles(t *testing.T) {
+	isolateLookupCache(t)
+	base := t.TempDir()
+	for profile, ids := range map[string][]string{
+		"settings_Default": {"1"}, "settings_PvP": {"1", "2"}, "backup": {"3"},
+	} {
+		dir := filepath.Join(base, profile)
+		if err := os.Mkdir(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range ids {
+			if err := os.WriteFile(filepath.Join(dir, "core_char_"+id+".dat"), nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	s := newLookupService("http://unused.invalid/", "/")
+	for id, value := range map[string]eveapi.Character{
+		"1": {Name: "Alpha", CorporationID: 10}, "2": {Name: "Beta", CorporationID: 11},
+	} {
+		if err := kvcache.Put(s.characters, id, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for id, value := range map[string]eveapi.Corporation{
+		"10": {Name: "Corp A", AllianceID: 20}, "11": {Name: "Corp B", AllianceID: 20},
+	} {
+		if err := kvcache.Put(s.corporations, id, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := kvcache.Put(s.alliances, "20", eveapi.Alliance{Name: "Shared Alliance"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, filter := range []string{"--all", "--characters", "--corporations", "--alliances"} {
+		var out bytes.Buffer
+		if err := runLookup(base, s, []string{filter}, &out); err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range map[string][]string{
+			"--all":        {"Alpha", "Beta", "Corp A", "Corp B", "Shared Alliance"},
+			"--characters": {"Alpha", "Beta"}, "--corporations": {"Corp A", "Corp B"}, "--alliances": {"Shared Alliance"},
+		}[filter] {
+			if strings.Count(out.String(), name) != 1 {
+				t.Fatalf("%s: missing or duplicate %s in %q", filter, name, out.String())
+			}
+		}
+	}
+	var out bytes.Buffer
+	if err := runLookup(base, s, []string{"--profile", "PvP"}, &out); err == nil {
+		t.Fatal("--profile unexpectedly accepted")
+	}
+}
+
 func ageLookupCache(t *testing.T, file string, age time.Duration) map[string]time.Time {
 	t.Helper()
 	path, err := configFilePath("cache/" + file)
@@ -61,7 +124,7 @@ func ageLookupCache(t *testing.T, file string, age time.Duration) map[string]tim
 
 func TestLookupNameTTLAndAffiliationRefresh(t *testing.T) {
 	isolateLookupCache(t)
-	dir := t.TempDir()
+	dir := lookupTestProfile(t)
 	if err := os.WriteFile(filepath.Join(dir, "core_char_1.dat"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +162,7 @@ func TestLookupNameTTLAndAffiliationRefresh(t *testing.T) {
 	for _, args := range [][]string{{"-c"}, {"Pilot"}, {"Old Corp"}} {
 		var output bytes.Buffer
 		// No server available: these must use the day-old name mappings.
-		if err := runLookup(dir, newLookupService("http://unused.invalid/", "/"), args, &output); err != nil {
+		if err := runLookup(filepath.Dir(dir), newLookupService("http://unused.invalid/", "/"), args, &output); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -107,7 +170,7 @@ func TestLookupNameTTLAndAffiliationRefresh(t *testing.T) {
 		t.Fatal("cache reads extended name expiry")
 	}
 	var output bytes.Buffer
-	if err := runLookup(dir, newLookupService(server.URL+"/", "/"), []string{"--corporations"}, &output); err != nil {
+	if err := runLookup(filepath.Dir(dir), newLookupService(server.URL+"/", "/"), []string{"--corporations"}, &output); err != nil {
 		t.Fatal(err)
 	}
 	if output.String() != "Corporation Name: New Corp (11)\n" {
@@ -119,7 +182,7 @@ func TestLookupRefreshBypassesAndUpdatesCaches(t *testing.T) {
 	for _, args := range [][]string{{"--refresh"}, {"--characters", "--refresh"}, {"--refresh", "Pilot"}} {
 		t.Run(fmt.Sprint(args), func(t *testing.T) {
 			isolateLookupCache(t)
-			dir := t.TempDir()
+			dir := lookupTestProfile(t)
 			if err := os.WriteFile(filepath.Join(dir, "core_char_1.dat"), nil, 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -152,7 +215,7 @@ func TestLookupRefreshBypassesAndUpdatesCaches(t *testing.T) {
 				t.Fatal(err)
 			}
 			var output bytes.Buffer
-			if err := runLookup(dir, s, args, &output); err != nil {
+			if err := runLookup(filepath.Dir(dir), s, args, &output); err != nil {
 				t.Fatal(err)
 			}
 			if !strings.Contains(output.String(), "Pilot (1)") || strings.Contains(output.String(), "Old") {
@@ -167,7 +230,7 @@ func TestLookupRefreshBypassesAndUpdatesCaches(t *testing.T) {
 				t.Fatalf("API calls = %d, want %d", calls, wantCalls)
 			}
 			output.Reset()
-			if err := runLookup(dir, s, []string{"Pilot"}, &output); err != nil {
+			if err := runLookup(filepath.Dir(dir), s, []string{"Pilot"}, &output); err != nil {
 				t.Fatal(err)
 			}
 			if output.String() != "Character Name: Pilot (1)\n" {
@@ -185,7 +248,7 @@ func intPointer(value int) *int { return &value }
 
 func TestLookupLocalModesAndCache(t *testing.T) {
 	isolateLookupCache(t)
-	dir := t.TempDir()
+	dir := lookupTestProfile(t)
 	for _, name := range []string{"core_char_1.dat", "core_char_2.dat", "core_user_99.dat", "core_char_bad.dat"} {
 		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o600); err != nil {
 			t.Fatal(err)
@@ -234,7 +297,7 @@ func TestLookupLocalModesAndCache(t *testing.T) {
 		t.Run(fmt.Sprint(test.args), func(t *testing.T) {
 			var output bytes.Buffer
 			// New service each time verifies persisted cache reuse across runs.
-			err := runLookup(dir, newLookupService(server.URL+"/", "/?datasource=tranquility"), test.args, &output)
+			err := runLookup(filepath.Dir(dir), newLookupService(server.URL+"/", "/?datasource=tranquility"), test.args, &output)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -284,7 +347,7 @@ func TestLookupNamedEntryWithoutLocalProfile(t *testing.T) {
 
 func TestLookupExpiredCacheAndAPIFailure(t *testing.T) {
 	isolateLookupCache(t)
-	dir := t.TempDir()
+	dir := lookupTestProfile(t)
 	if err := os.WriteFile(filepath.Join(dir, "core_char_1.dat"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -303,11 +366,11 @@ func TestLookupExpiredCacheAndAPIFailure(t *testing.T) {
 	}))
 	defer server.Close()
 	var output bytes.Buffer
-	err := runLookup(dir, newLookupService(server.URL+"/", "/"), []string{"-c"}, &output)
+	err := runLookup(filepath.Dir(dir), newLookupService(server.URL+"/", "/"), []string{"-c"}, &output)
 	if err == nil || !strings.Contains(err.Error(), "503") || output.Len() != 0 {
 		t.Fatalf("first lookup = %q, %v; want HTTP 503 and no output", output.String(), err)
 	}
-	err = runLookup(dir, newLookupService(server.URL+"/", "/"), []string{"-c"}, &output)
+	err = runLookup(filepath.Dir(dir), newLookupService(server.URL+"/", "/"), []string{"-c"}, &output)
 	if err != nil || output.String() != "Character Name: Fresh (1)\n" {
 		t.Fatalf("retry lookup = %q, %v", output.String(), err)
 	}
@@ -336,7 +399,7 @@ func TestLookupFiltersFetchOnlyNeededEntities(t *testing.T) {
 	} {
 		t.Run(test.flag+test.want, func(t *testing.T) {
 			isolateLookupCache(t)
-			dir := t.TempDir()
+			dir := lookupTestProfile(t)
 			if err := os.WriteFile(filepath.Join(dir, "core_char_1.dat"), nil, 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -356,7 +419,7 @@ func TestLookupFiltersFetchOnlyNeededEntities(t *testing.T) {
 			}))
 			defer server.Close()
 			var output bytes.Buffer
-			if err := runLookup(dir, newLookupService(server.URL+"/", "/"), []string{test.flag}, &output); err != nil {
+			if err := runLookup(filepath.Dir(dir), newLookupService(server.URL+"/", "/"), []string{test.flag}, &output); err != nil {
 				t.Fatal(err)
 			}
 			server.Close()

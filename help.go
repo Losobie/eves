@@ -15,7 +15,7 @@ Commands:
   account  List, name, detect, and copy account settings
   copy     Copy character settings to a character or group
   group    Manage groups of characters
-  profile  List or select EVE settings profiles
+
 
 Options:
   --help         Show help for the command given as the first argument
@@ -30,7 +30,7 @@ var commandHelp = map[string]string{
 Usage: eves lookup [--refresh] [--all|-a|--characters|-c|--corporations|--alliances|<name>]
 
   No filter, --all, -a  List local characters and their corporations/alliances
-  --characters, -c      List characters in the selected profile
+  --characters, -c      List characters across all settings profiles
   --corporations       List corporations of local characters
   --alliances          List alliances of local characters
   <name>               Resolve one exact name, case-insensitively
@@ -57,7 +57,7 @@ copy    Overwrite an existing destination account settings file.
 detect  Watch all profiles for changes and prompt for names; Ctrl+C stops.
 
 Copy references accept a profile name or zero-based index after @.
-Omitted profiles use the selected profile. Copying the same file is skipped.
+Omitted profiles use the Default profile. Copying the same file is skipped.
 
 Example:
   eves account copy "Primary@Default" "Secondary@PvP"`,
@@ -68,7 +68,7 @@ Usage:
   eves copy <source-character>[@profile] <group>
 
 The destination settings are overwritten. Profiles accept names or zero-based
-indices from eves profile list. Omitted profiles use the selected profile.
+indices of alphabetically sorted settings directories. Omitted profiles use the Default profile.
 Group members use their stored profiles. Copying the same file is skipped.
 
 Examples:
@@ -84,25 +84,10 @@ Usage:
   eves group list <group>
   eves group delete <group>
 
-Character references retain their profile. Omitted profiles use the selected
-profile. List without a group shows all groups and member counts.
+Character references retain their profile. Omitted profiles use Default. List without a group shows all groups and member counts.
 
 Example:
   eves group add "Character Name@Default" MyGroup`,
-	"profile": `View or select the EVE settings profile.
-
-Usage:
-  eves profile list
-  eves profile get
-  eves profile set <name-or-index>
-
-list  Show profile names and zero-based indices; * marks the selected profile.
-get   Show the selected profile name.
-set   Select a profile by name (with or without settings_) or index.
-
-Examples:
-  eves profile set Default
-  eves profile set 0`,
 }
 
 // showHelp handles help before configuration, filesystem access, or command work.

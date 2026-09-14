@@ -10,11 +10,16 @@ eves
 eves --help
 eves lookup --help
 eves account copy --help
-eves profile set Default --help
+eves group --help
 ```
 
 Help for an unknown command falls back to general help. Help does not require
 configuration or a local EVE installation.
+
+There is no active-profile setting or `profile` command. Copy and group
+references without `@profile` use `Default`; lookup lists scan all profiles.
+Existing configuration files automatically drop the retired `settings_folder`
+field when loaded, preserving the other settings.
 
 ## List Accounts
 
@@ -34,7 +39,7 @@ eves account set 12345 "Name"
 
 ## Copy Account Settings
 
-Copy account settings within or across profiles. The source and target can each be an account ID or an assigned name, optionally followed by `@profile`. Profiles accept a name (with or without `settings_`) or a zero-based index from `eves profile list`. When omitted, each side uses the current profile.
+Copy account settings within or across profiles. The source and target can each be an account ID or an assigned name, optionally followed by `@profile`. Profiles accept a name (with or without `settings_`) or a zero-based index of alphabetically sorted `settings_*` directories. When omitted, each side uses `Default`.
 
 ```text
 eves account copy 12345 67890
@@ -56,7 +61,7 @@ eves account detect
 
 ## Lookup
 
-List characters in the selected profile and their corporations and alliances, resolving IDs to names. These commands produce the same output:
+List characters across all `settings_*` profiles in the configured EVE environment and their corporations and alliances, resolving IDs to names. These commands produce the same output:
 
 ```text
 eves lookup
@@ -73,7 +78,7 @@ eves lookup --corporations
 eves lookup --alliances
 ```
 
-Look up one character, corporation, or alliance by its exact name (case-insensitive), including entries outside the selected profile:
+Look up one character, corporation, or alliance by its exact name (case-insensitive), including entries without local settings:
 
 ```text
 eves lookup "Character Name"

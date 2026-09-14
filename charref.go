@@ -54,7 +54,7 @@ func parseCharRef(s, profile string) CharRef {
 	at := strings.LastIndex(s, "@")
 	if at <= 0 || at == len(s)-1 {
 		if profile == "" {
-			profile = "default"
+			profile = "Default"
 		}
 		return CharRef{Name: s, Profile: profile}
 	}

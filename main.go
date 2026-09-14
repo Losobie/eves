@@ -48,10 +48,9 @@ func main() {
 	}
 
 	baseDir := filepath.Join(cacheDir, "CCP", "EVE", config.EveEnv)
-	directory := filepath.Join(baseDir, config.SettingsFolder)
 
 	if args[1] == "lookup" {
-		if err := runLookup(directory, newLookupService(config.Server, config.ServerSuffix), args[2:], os.Stdout); err != nil {
+		if err := runLookup(baseDir, newLookupService(config.Server, config.ServerSuffix), args[2:], os.Stdout); err != nil {
 			fail(err)
 		}
 		return
@@ -106,7 +105,7 @@ func main() {
 			if len(args) != 5 {
 				dieAccountUsage()
 			}
-			if err := copyAccountSettings(baseDir, config.SettingsFolder, args[3], args[4]); err != nil {
+			if err := copyAccountSettings(baseDir, "settings_Default", args[3], args[4]); err != nil {
 				fail(err)
 			}
 		default:
@@ -118,9 +117,9 @@ func main() {
 			dieCopyUsage()
 		}
 
-		currentProfile := config.SettingsFolder[9:]
+		currentProfile := "Default"
 		sourceChar := parseCharRef(args[2], currentProfile)
-		sourceDir, err := resolveProfileDir(baseDir, config.SettingsFolder, sourceChar.Profile)
+		sourceDir, err := resolveProfileDir(baseDir, "settings_Default", sourceChar.Profile)
 		if err != nil {
 			fail(err)
 		}
@@ -139,7 +138,7 @@ func main() {
 
 		if len(members) > 0 {
 			for _, memberRef := range members {
-				memberDir, err := resolveProfileDir(baseDir, config.SettingsFolder, memberRef.Profile)
+				memberDir, err := resolveProfileDir(baseDir, "settings_Default", memberRef.Profile)
 				if err != nil {
 					// you can choose fail-fast or skip; this is skip w/ verbose logging
 					vlog("Skipping %q: %v", memberRef, err)
@@ -167,7 +166,7 @@ func main() {
 
 		// Otherwise treat it as a character ref:
 		destRef := parseCharRef(targetToken, currentProfile)
-		destDir, err := resolveProfileDir(baseDir, config.SettingsFolder, destRef.Profile)
+		destDir, err := resolveProfileDir(baseDir, "settings_Default", destRef.Profile)
 		if err != nil {
 			fail(err)
 		}
@@ -196,9 +195,9 @@ func main() {
 			}
 			name := args[3]
 			group := args[4]
-			currentProfile := config.SettingsFolder[9:]
+			currentProfile := "Default"
 			charRef := parseCharRef(name, currentProfile)
-			if n, err := strconv.Atoi(charRef.Profile); err == nil && n < len(profiles) {
+			if n, err := strconv.Atoi(charRef.Profile); err == nil && n >= 0 && n < len(profiles) {
 				charRef.Profile = profiles[n]
 			}
 			if err := AddToGroup(charRef, group); err != nil {
@@ -214,9 +213,9 @@ func main() {
 			}
 			name := args[3]
 			group := args[4]
-			currentProfile := config.SettingsFolder[9:]
+			currentProfile := "Default"
 			charRef := parseCharRef(name, currentProfile)
-			if n, err := strconv.Atoi(charRef.Profile); err == nil && n < len(profiles) {
+			if n, err := strconv.Atoi(charRef.Profile); err == nil && n >= 0 && n < len(profiles) {
 				charRef.Profile = profiles[n]
 			}
 			removed, err := RemoveFromGroup(charRef, group)
@@ -275,69 +274,7 @@ func main() {
 		default:
 			dieGroupUsage()
 		}
-	case "profile":
-		if len(args) < 3 {
-			dieConfigUsage()
-		}
-		switch args[2] {
-		case "get":
-			fmt.Println(config.SettingsFolder[9:])
-			return
-		case "set":
-			if len(args) < 4 {
-				dieConfigUsage()
-			}
-			profile := args[3]
 
-			profileId, err := strconv.Atoi(profile)
-			if err == nil {
-				dirs, err := os.ReadDir(filepath.Dir(directory))
-				if err != nil {
-					fail(err)
-				}
-				count := 0
-				for _, e := range dirs {
-					if e.IsDir() && strings.HasPrefix(e.Name(), "settings_") {
-						if count == profileId {
-							fmt.Println(e.Name()[9:])
-							config.SettingsFolder = e.Name()
-							break
-						}
-						count++
-					}
-				}
-			} else {
-				// Append settings_ to front of profile if missing
-				if len(profile) < 9 || "settings_" != profile[:9] {
-					profile = "settings_" + profile
-				}
-
-				config.SettingsFolder = profile
-			}
-
-			err = SaveConfig(config)
-			if err != nil {
-				fail(err)
-			}
-			return
-		case "list":
-			vlog("Profiles from %s", filepath.Dir(directory))
-
-			count := 0
-			for _, e := range profiles {
-				var isCurrent string
-				if config.SettingsFolder[9:] == e {
-					isCurrent = "*"
-				} else {
-					isCurrent = ""
-				}
-				fmt.Printf("%s[%d] %s\n", isCurrent, count, e)
-				count++
-			}
-			return
-		default:
-			dieConfigUsage()
-		}
 	default:
 		fmt.Printf("Unrecognized command: %q\n", args[1])
 	}
@@ -458,17 +395,6 @@ usage:
   eves account set <account-id> <name>
   eves account copy <source-id-or-name>[@profile] <target-id-or-name>[@profile]
   eves account detect
-`)+"\n")
-	os.Exit(2)
-}
-
-func dieConfigUsage() {
-	fmt.Fprintf(os.Stderr, strings.TrimSpace(`
-usage:
-  eves profile list
-  eves profile get
-  eves profile set 1
-  eves profile set Default
 `)+"\n")
 	os.Exit(2)
 }

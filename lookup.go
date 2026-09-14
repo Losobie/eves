@@ -108,26 +108,35 @@ var characterFilePattern = regexp.MustCompile(`^core_char_(\d+)\.dat$`)
 
 func localCharacterIDs(directory string) ([]int, error) {
 	ids := make(map[int]bool)
-	err := filepath.WalkDir(directory, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		if match := characterFilePattern.FindStringSubmatch(entry.Name()); match != nil {
-			id, err := strconv.Atoi(match[1])
-			if err != nil {
-				return fmt.Errorf("invalid character ID in %s: %w", path, err)
-			}
-			if id > 0 {
-				ids[id] = true
-			}
-		}
-		return nil
-	})
+	profiles, err := os.ReadDir(directory)
 	if err != nil {
-		return nil, fmt.Errorf("read local characters: %w", err)
+		return nil, fmt.Errorf("read EVE profiles: %w", err)
+	}
+	for _, profile := range profiles {
+		if !profile.IsDir() || !strings.HasPrefix(profile.Name(), "settings_") {
+			continue
+		}
+		err := filepath.WalkDir(filepath.Join(directory, profile.Name()), func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			if match := characterFilePattern.FindStringSubmatch(entry.Name()); match != nil {
+				id, err := strconv.Atoi(match[1])
+				if err != nil {
+					return fmt.Errorf("invalid character ID in %s: %w", path, err)
+				}
+				if id > 0 {
+					ids[id] = true
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("read local characters: %w", err)
+		}
 	}
 	return sortedLookupIDs(ids), nil
 }
