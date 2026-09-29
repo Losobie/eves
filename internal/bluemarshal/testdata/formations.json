@@ -1,0 +1,92 @@
+{
+  "bytes:ui": {
+    "bytes:probescanning.customFormations": {
+      "tuple": [
+        "long:134280801871504062",
+        {
+          "int:7": {
+            "tuple": [
+              "utf8:Drifter: α 🚀",
+              [
+                {
+                  "tuple": [
+                    {
+                      "tuple": [
+                        250000,
+                        0,
+                        0
+                      ]
+                    },
+                    37399467675
+                  ]
+                },
+                {
+                  "tuple": [
+                    {
+                      "tuple": [
+                        -250000,
+                        0,
+                        0
+                      ]
+                    },
+                    37399467675
+                  ]
+                }
+              ]
+            ]
+          },
+          "int:2": {
+            "tuple": [
+              "bytes:Pinpoint",
+              [
+                {
+                  "tuple": [
+                    {
+                      "tuple": [
+                        0,
+                        500000,
+                        0
+                      ]
+                    },
+                    37399467675
+                  ]
+                }
+              ]
+            ]
+          },
+          "int:-4": {
+            "tuple": [
+              "bytes:tempFormation",
+              []
+            ]
+          }
+        }
+      ]
+    },
+    "bytes:probescanning.selectedFormationID": {
+      "tuple": [
+        "long:134280801871504062",
+        7
+      ]
+    },
+    "bytes:unrelated": {
+      "tuple": [
+        "long:9999999999999999999999999999",
+        {
+          "bytes:bool": true,
+          "bytes:float": 1.5,
+          "bytes:negative": -40000,
+          "bytes:long": "long:-99999999999999999999999999",
+          "bytes:instance": {
+            "instance": {
+              "class": "util.KeyVal",
+              "state": {
+                "bytes:test": null
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

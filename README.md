@@ -31,6 +31,8 @@ Lists profile names and zero-based indices in alphabetical order for use in
 
 ## List Accounts
 
+See also `eves formation list` to inspect account probe formations.
+
 List the account IDs found in the current EVE settings profiles. Accounts with an assigned name include it in parentheses; unassigned accounts are shown by ID only.
 
 ```text
@@ -66,6 +68,67 @@ Watch all EVE settings profiles for the next modified account settings file and 
 ```text
 eves account detect
 ```
+
+## List Probe Formations
+
+List custom probe formations across all accounts and `settings_*` profiles in
+the configured EVE environment:
+
+```text
+eves formation list
+```
+
+Optionally limit the list to an account ID or assigned account name. References
+accept `@profile` names or zero-based indices from `eves profile list`; an
+omitted profile means `Default`:
+
+```text
+eves formation list "Primary@PvP"
+eves formation list "12345@1"
+eves formation list 12345
+eves formation --help
+```
+
+Output includes account ID/name, profile, formation ID/name, and probe count.
+The same formation in different account/profile files is listed separately.
+Internal formations with negative IDs are omitted. If there are no user
+formations, the command prints `No custom probe formations found.`
+
+Supply a formation name as a separate argument after the account reference to display the coordinates
+and scan range of each probe in one formation:
+
+```text
+eves formation list "Alpha@Default" "temp"
+```
+
+Formation names match case-insensitively. Missing or ambiguous names return an
+error. Coordinates are shown in kilometres, ranges in AU, and probes are
+numbered from 1 in their stored order. Omitted profiles still use `Default`.
+
+Use `-o json` (also `--output json`) for a selected formation to print an
+indented JSON object suitable for copying, editing, or saving:
+
+```text
+eves formation list "Alpha@Default" "temp" -o json
+eves formation list "Alpha@Default" "temp" -o json > temp.json
+```
+
+The version 1 format contains `name` and a `probes` array. Each probe is
+`[x, y, z, au]`: coordinates in kilometres followed by scan range in AU.
+For example: `[250,0,0,0.25]`. Probe order is preserved.
+Account/profile information and the source formation ID are omitted so the
+definition can be reused elsewhere. JSON mode prints only JSON to stdout;
+errors go to stderr. JSON output requires both an account and formation name.
+Creating or importing a formation from this JSON will be added separately.
+
+Listing reads local account settings directly without modifying them or calling
+ESI. Unreadable, corrupt, or unsupported files are reported, with a nonzero exit
+status; formations from readable files are still listed.
+
+The read-only Go decoder is adapted from
+[TrueBrain's blue-marshal-rs](https://github.com/TrueBrain/blue-marshal-rs), with
+its MIT notices included in [internal/bluemarshal/LICENSE](internal/bluemarshal/LICENSE).
+No Rust, Node, or external decoder executable is required to run `eves`.
 
 ## Lookup
 

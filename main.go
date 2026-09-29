@@ -48,6 +48,12 @@ func main() {
 	}
 
 	baseDir := filepath.Join(cacheDir, "CCP", "EVE", config.EveEnv)
+	if args[1] == "formation" {
+		if err := runFormation(baseDir, args[2:], os.Stdout); err != nil {
+			fail(err)
+		}
+		return
+	}
 
 	if args[1] == "lookup" {
 		if err := runLookup(baseDir, newLookupService(config.Server, config.ServerSuffix), args[2:], os.Stdout); err != nil {

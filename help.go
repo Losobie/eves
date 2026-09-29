@@ -16,6 +16,7 @@ Commands:
   copy     Copy character settings to a character or group
   group    Manage groups of characters
   profile  List EVE settings profiles
+  formation List custom probe formations
 
 Options:
   --help         Show help for the command given as the first argument
@@ -25,6 +26,30 @@ Run eves <command> --help for command details.
 Running eves without arguments shows this help.`
 
 var commandHelp = map[string]string{
+	"formation": `List custom probe formations stored in account settings.
+
+Usage: eves formation list [<account-id-or-name>[@profile] [<formation-name>]] [-o json|text]
+
+Without an account reference, scans all accounts in every settings profile
+of the configured EVE environment. With a reference, reads only that account;
+omitting @profile uses Default. Profile names and zero-based indices work.
+
+Shows account ID/name, profile, formation ID/name, and probe count.
+Supply a formation name after the account reference to display its coordinates in km
+and scan ranges in AU. Names match case-insensitively; ambiguous names error.
+Internal temporary formations are omitted. Settings files are never modified.
+Unreadable files are reported as errors; readable files are still listed.
+
+Use -o json (or --output json) with one selected formation to print portable
+JSON containing its name and probes, each as [x, y, z, au] (coordinates in km).
+Output defaults to text. Formation creation/import is not yet implemented.
+
+Examples:
+  eves formation list
+  eves formation list "Primary@PvP"
+  eves formation list "Alpha@Default" "temp"
+  eves formation list "Alpha@Default" "temp" -o json
+  eves formation list 12345`,
 	"profile": `List EVE settings profiles in the configured environment.
 
 Usage: eves profile list
