@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"losobie.com/eves/eveapi"
+	"losobie.com/eves/internal/bluemarshal"
 	"losobie.com/eves/kvcache"
 )
 
@@ -203,6 +204,73 @@ func TestSettingsArguments(t *testing.T) {
 	for _, args := range [][]string{{"--plain", "Alpha@PvP", "--account"}, {"Alpha@PvP", "--account", "--plain"}} {
 		if opts, err := parseSettingsExport(args); err != nil || opts != (settingsExportOptions{source: "Alpha@PvP", kind: "account", plain: true}) {
 			t.Errorf("plain arguments %v: %+v, %v", args, opts, err)
+		}
+	}
+}
+
+func TestAccountNamedAfterCharacterExport(t *testing.T) {
+	isolateLookupCache(t)
+	cacheDir := t.TempDir()
+	t.Setenv("LocalAppData", cacheDir)
+	t.Setenv("XDG_CACHE_HOME", cacheDir)
+	if err := SaveConfig(&Config{Server: "http://unused.invalid/", ServerSuffix: "/", EveEnv: "test-env"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveAccounts(Accounts{"12": "Shared Name"}); err != nil {
+		t.Fatal(err)
+	}
+	service := newLookupService("http://unused.invalid/", "/")
+	service.rememberName("Character", "Shared Name", 34)
+	dir := filepath.Join(cacheDir, "CCP", "EVE", "test-env", "settings_Default")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// A synthetic account dictionary whose int and long keys both become "2"
+	// in plain JSON. Wire dictionaries store each value before its key.
+	data := []byte{
+		bluemarshal.TY_SIGNATURE2, 1, bluemarshal.TY_DICT, 1,
+		bluemarshal.TY_DICT, 2,
+		bluemarshal.TY_TRUE, bluemarshal.TY_INT8, 2,
+		bluemarshal.TY_FALSE, bluemarshal.TY_LONG, 1, 2,
+		bluemarshal.TY_STR_SHORT, 2, 'u', 'i',
+	}
+	if err := os.WriteFile(filepath.Join(dir, "core_user_12.dat"), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Reading the character file by mistake must fail, rather than returning
+	// identical fixture output and hiding incorrect source selection.
+	if err := os.WriteFile(filepath.Join(dir, "core_char_34.dat"), []byte("wrong source"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var typedOutput bytes.Buffer
+	if err := runExport([]string{"Shared Name", "--account"}, &typedOutput); err != nil {
+		t.Fatal(err)
+	}
+	var typedDocument map[string]any
+	if err := json.Unmarshal(typedOutput.Bytes(), &typedDocument); err != nil {
+		t.Fatal(err)
+	}
+	ui, ok := typedDocument["bytes:ui"].(map[string]any)
+	if !ok || ui["int:2"] != true || ui["long:2"] != false {
+		t.Fatalf("typed export changed: %s", typedOutput.String())
+	}
+	for _, args := range [][]string{
+		{"Shared Name", "--account", "--plain"},
+		{"--account", "--plain", "Shared Name"},
+		{"--plain", "Shared Name", "--account"},
+		{"Shared Name@Default", "--plain", "--account"},
+	} {
+		var output bytes.Buffer
+		if err := runExport(args, &output); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		var document map[string]any
+		if err := json.Unmarshal(output.Bytes(), &document); err != nil || document["ui"] == nil {
+			t.Fatalf("%v: invalid plain account export: %v", args, err)
+		}
+		want := []any{[]any{float64(2), true}, []any{float64(2), false}}
+		if !reflect.DeepEqual(document["ui"], want) {
+			t.Fatalf("%v: colliding account settings were lost: %s", args, output.String())
 		}
 	}
 }

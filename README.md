@@ -2,12 +2,14 @@
 
 ## Help
 
-Running `eves` without arguments shows general help. Use `--help` anywhere
+Running `eves` without arguments, `eves help`, or `eves --help` shows general help.
+Use `--help` anywhere
 after a command to show help for that first command, without running it:
 
 ```text
 eves
 eves --help
+eves help
 eves lookup --help
 eves account copy --help
 eves group --help
@@ -181,7 +183,10 @@ become unmarked base64 strings; non-finite floats become `"nan"`, `"inf"`, or
 their contents. Construction records retain callable/arguments, state, and
 iterator data without their type wrapper or `newobj` marker. This mode loses
 original type distinctions. If different dictionary keys convert to the same
-JSON key, export fails before writing output; use typed output for that file.
+JSON key, that dictionary becomes an array of `[key, value]` pairs in stored
+order. For example, integer `2` and string `"2"` keys become
+`[[2,"first value"],["2","second value"]]`. All entries in that dictionary are
+retained; dictionaries without collisions remain JSON objects.
 
 ## Lookup
 

@@ -16,6 +16,7 @@ func TestShowHelpContext(t *testing.T) {
 	}{
 		{nil, generalHelp},
 		{[]string{"--help"}, generalHelp},
+		{[]string{"help"}, generalHelp},
 		{[]string{"--help", "lookup"}, generalHelp},
 		{[]string{"unknown", "--help"}, generalHelp},
 		{[]string{"lookup", "--refresh", "--help"}, commandHelp["lookup"]},
@@ -50,7 +51,7 @@ func TestHelpBeforeConfiguration(t *testing.T) {
 		}
 		t.Fatal("missing helper arguments")
 	}
-	for _, args := range [][]string{nil, {"--help"}, {"profile", "set", "Default", "--help"}, {"--verbose", "account", "detect", "--help"}, {"export", "--help"}} {
+	for _, args := range [][]string{nil, {"--help"}, {"help"}, {"--verbose", "help"}, {"profile", "set", "Default", "--help"}, {"--verbose", "account", "detect", "--help"}, {"export", "--help"}} {
 		configDir := t.TempDir()
 		// Invalid config proves help is dispatched before reading configuration.
 		evesDir := filepath.Join(configDir, "eves")

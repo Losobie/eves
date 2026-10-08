@@ -20,7 +20,8 @@ instead of silently dropping data. No JSON-to-marshal encoder is provided.
 strings/keys, arrays for tuples, numbers for long integers, and unmarked base64
 for binary strings. Object instances/callbacks export their state/contents;
 construction records retain payload data without type wrappers. Non-finite
-floats become strings. Plain-key collisions cause errors rather than data loss.
+floats become strings. Dictionaries with colliding plain keys become arrays of
+`[key, value]` pairs in stored order, retaining all entries without type markers.
 The same expansion limits apply. Original type information is lost.
 
 As in the reference library, database rows, nested streams, pickle payloads, and

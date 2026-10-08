@@ -20,8 +20,8 @@ func ToJSON(v *Value) (any, error) {
 
 // ToPlainJSON omits marshal type markers for inspection with ordinary JSON
 // tools. It is intentionally lossy: tuples become arrays, instances become
-// their state, and dictionary keys lose their original types. Colliding keys
-// are rejected rather than silently overwritten.
+// their state, and dictionary keys lose their original types. Dictionaries
+// with colliding keys become arrays of key/value pairs, preserving every entry.
 func ToPlainJSON(v *Value) (any, error) {
 	w := jsonWalker{plain: true}
 	return w.value(v, 0)
@@ -137,6 +137,9 @@ func (w *jsonWalker) value(v *Value, depth int) (any, error) {
 		}
 		return items, nil
 	case TY_DICT:
+		if w.plain {
+			return w.plainDictionary(v, depth)
+		}
 		result := make(map[string]any, len(v.Pairs))
 		for _, pair := range v.Pairs {
 			key, err := w.key(pair.Key, depth+1)
@@ -144,9 +147,6 @@ func (w *jsonWalker) value(v *Value, depth int) (any, error) {
 				return nil, err
 			}
 			if _, exists := result[key]; exists {
-				if w.plain {
-					return nil, fmt.Errorf("dictionary keys collide as %q in plain JSON; use typed output", key)
-				}
 				return nil, fmt.Errorf("duplicate JSON dictionary key %q", key)
 			}
 			value, err := w.value(pair.Value, depth+1)
@@ -192,17 +192,6 @@ func (w *jsonWalker) value(v *Value, depth int) (any, error) {
 }
 
 func (w *jsonWalker) key(v *Value, depth int) (string, error) {
-	if w.plain {
-		value, err := w.value(v, depth)
-		if err != nil {
-			return "", err
-		}
-		if text, ok := value.(string); ok {
-			return text, nil
-		}
-		data, err := json.Marshal(value)
-		return string(data), err
-	}
 	if err := w.visit(v, depth); err != nil {
 		return "", err
 	}
@@ -231,6 +220,39 @@ func (w *jsonWalker) key(v *Value, depth int) (string, error) {
 		data, err := json.Marshal(value)
 		return "json:" + string(data), err
 	}
+}
+
+func (w *jsonWalker) plainDictionary(v *Value, depth int) (any, error) {
+	result := make(map[string]any, len(v.Pairs))
+	pairs := make([][2]any, 0, len(v.Pairs))
+	collision := false
+	for _, pair := range v.Pairs {
+		keyValue, err := w.value(pair.Key, depth+1)
+		if err != nil {
+			return nil, err
+		}
+		key, isString := keyValue.(string)
+		if !isString {
+			data, err := json.Marshal(keyValue)
+			if err != nil {
+				return nil, err
+			}
+			key = string(data)
+		}
+		value, err := w.value(pair.Value, depth+1)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := result[key]; exists {
+			collision = true
+		}
+		result[key] = value
+		pairs = append(pairs, [2]any{keyValue, value})
+	}
+	if collision {
+		return pairs, nil
+	}
+	return result, nil
 }
 
 func (w *jsonWalker) reduce(v *Value, depth int) (any, error) {

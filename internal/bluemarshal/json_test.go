@@ -232,20 +232,33 @@ func TestPlainJSONTypes(t *testing.T) {
 }
 
 func TestPlainJSONKeys(t *testing.T) {
-	for _, keys := range [][]*Value{
-		{{Kind: TY_INT64, Int: 1}, {Kind: TY_UTF8, Text: "1"}},
-		{{Kind: TY_BUFFER, Text: "same"}, {Kind: TY_UTF8, Text: "same"}},
-		{{Kind: TY_NONE}, {Kind: TY_BUFFER, Text: "null"}},
+	for _, test := range []struct {
+		keys []*Value
+		want string
+	}{
+		{[]*Value{{Kind: TY_INT64, Int: 2}, {Kind: TY_LONG, Text: "2"}}, `[[2,true],[2,false]]`},
+		{[]*Value{{Kind: TY_INT64, Int: 1}, {Kind: TY_UTF8, Text: "1"}}, `[[1,true],["1",false]]`},
+		{[]*Value{{Kind: TY_BUFFER, Text: "same"}, {Kind: TY_UTF8, Text: "same"}}, `[["same",true],["same",false]]`},
+		{[]*Value{{Kind: TY_NONE}, {Kind: TY_BUFFER, Text: "null"}}, `[[null,true],["null",false]]`},
 	} {
 		v := &Value{Kind: TY_DICT}
-		for _, key := range keys {
-			v.Pairs = append(v.Pairs, Pair{key, &Value{Kind: TY_TRUE}})
+		for i, key := range test.keys {
+			kind := TY_TRUE
+			if i > 0 {
+				kind = TY_FALSE
+			}
+			v.Pairs = append(v.Pairs, Pair{key, &Value{Kind: byte(kind)}})
 		}
 		if _, err := ToJSON(v); err != nil {
 			t.Fatalf("distinct typed keys rejected: %v", err)
 		}
-		if _, err := ToPlainJSON(v); err == nil || !strings.Contains(err.Error(), "collide") {
-			t.Fatalf("plain key collision accepted: %v", err)
+		plain, err := ToPlainJSON(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := json.Marshal(plain)
+		if err != nil || string(data) != test.want {
+			t.Fatalf("plain key collision: got %s, %v; want %s", data, err, test.want)
 		}
 	}
 	v := &Value{Kind: TY_DICT, Pairs: []Pair{
@@ -259,5 +272,26 @@ func TestPlainJSONKeys(t *testing.T) {
 	data, err := json.Marshal(value)
 	if err != nil || string(data) != `{"[1,\"x\"]":true,"false":null}` {
 		t.Fatalf("plain keys = %s, %v", data, err)
+	}
+}
+
+func TestPlainJSONNestedKeyCollision(t *testing.T) {
+	v := &Value{Kind: TY_DICT, Pairs: []Pair{
+		{&Value{Kind: TY_BUFFER, Text: "ui"}, &Value{Kind: TY_DICT, Pairs: []Pair{
+			{&Value{Kind: TY_BUFFER, Text: "before"}, &Value{Kind: TY_NONE}},
+			{&Value{Kind: TY_INT64, Int: 2}, &Value{Kind: TY_BUFFER, Text: "integer"}},
+			{&Value{Kind: TY_BUFFER, Text: "2"}, &Value{Kind: TY_BUFFER, Text: "string"}},
+			{&Value{Kind: TY_BUFFER, Text: "after"}, &Value{Kind: TY_INT64, Int: 7}},
+		}}},
+		{&Value{Kind: TY_BUFFER, Text: "other"}, &Value{Kind: TY_TRUE}},
+	}}
+	plain, err := ToPlainJSON(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(plain)
+	want := `{"other":true,"ui":[["before",null],[2,"integer"],["2","string"],["after",7]]}`
+	if err != nil || string(data) != want {
+		t.Fatalf("nested key collision: got %s, %v; want %s", data, err, want)
 	}
 }

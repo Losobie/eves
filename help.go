@@ -11,6 +11,7 @@ const generalHelp = `EVE settings manager
 Usage: eves <command> [arguments]
 
 Commands:
+  help     Show general help
   lookup   Resolve character, corporation, and alliance names and IDs
   account  List, name, detect, and copy account settings
   copy     Copy character settings to a character or group
@@ -24,7 +25,7 @@ Options:
   --verbose, -v  Enable diagnostic output
 
 Run eves <command> --help for command details.
-Running eves without arguments shows this help.`
+Running eves without arguments or using eves help shows this help.`
 
 var commandHelp = map[string]string{
 	"export": `Export a complete EVE settings file as typed JSON.
@@ -44,7 +45,8 @@ integers, and object wrappers. Shared references expand to repeated values.
 Use --plain to omit type markers: strings/keys have no prefixes, tuples become
 arrays, and large integers become JSON numbers. Instances export their state.
 Binary strings become base64; non-finite floats become "nan", "inf", or "-inf".
-Plain output loses original types; keys that collide after conversion error.
+Plain output loses original types. If dictionary keys collide after conversion,
+that dictionary becomes a list of [key, value] pairs, preserving every entry.
 Unsupported or corrupt files return an error. Source files are never modified.
 This is an inspection export; settings import is not implemented.
 File-path exports do not require configuration or a local EVE installation.
@@ -154,7 +156,7 @@ Example:
 // showHelp handles help before configuration, filesystem access, or command work.
 // args excludes the executable and the global verbose option.
 func showHelp(args []string, output io.Writer) bool {
-	requested := len(args) == 0
+	requested := len(args) == 0 || args[0] == "help"
 	for _, arg := range args {
 		if arg == "--help" {
 			requested = true
