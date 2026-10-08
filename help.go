@@ -17,6 +17,7 @@ Commands:
   group    Manage groups of characters
   profile  List EVE settings profiles
   formation List custom probe formations
+  export   Export a complete settings file as typed JSON
 
 Options:
   --help         Show help for the command given as the first argument
@@ -26,6 +27,29 @@ Run eves <command> --help for command details.
 Running eves without arguments shows this help.`
 
 var commandHelp = map[string]string{
+	"export": `Export a complete EVE settings file as typed JSON.
+
+Usage: eves export <file-path|id-or-name[@profile]> [--account|--character]
+
+Accepts a file path, character ID/name, or account ID/assigned name.
+References use Default unless @profile supplies a name or zero-based index.
+Account aliases match case-insensitively and take precedence over character names.
+Character names use cached lookups, or ESI when not cached.
+Use --character to bypass an account alias, or --account to select account settings.
+An ID with both settings types requires --account or --character.
+
+Prints only indented JSON to stdout; redirect it to save a document.
+Typed markers preserve byte/Unicode strings, dictionary keys, tuples, large
+integers, and object wrappers. Shared references expand to repeated values.
+Unsupported or corrupt files return an error. Source files are never modified.
+This is an inspection export; settings import is not implemented.
+File-path exports do not require configuration or a local EVE installation.
+
+Examples:
+  eves export "C:\EVE\settings_Default\core_user_12345.dat"
+  eves export "Character Name@PvP" > settings.json
+  eves export "Alpha@Default"
+  eves export 12345@1 --account`,
 	"formation": `List custom probe formations stored in account settings.
 
 Usage: eves formation list [<account-id-or-name>[@profile] [<formation-name>]] [-o json|text]

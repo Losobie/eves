@@ -130,6 +130,47 @@ The read-only Go decoder is adapted from
 its MIT notices included in [internal/bluemarshal/LICENSE](internal/bluemarshal/LICENSE).
 No Rust, Node, or external decoder executable is required to run `eves`.
 
+## Export Settings
+
+Export an entire blue.Marshal settings file as indented typed JSON:
+
+```text
+eves export "C:\EVE\settings_Default\core_user_12345.dat"
+eves export 12345
+eves export "Character Name@PvP"
+eves export "Alpha@Default" > settings.json
+eves export 12345@1 --account
+eves export "Character Name" --character
+```
+
+Sources accept file paths, character IDs/names, and account IDs or aliases assigned
+with `eves account set`. References accept `@profile` names (including `settings_`)
+or zero-based indices from `eves profile list`. Omitted profiles use `Default`.
+An existing file path takes precedence over a reference, including paths containing
+`@`. Paths do not require configuration or an EVE installation.
+
+IDs automatically select the matching local account or character settings file.
+If both exist for that ID, specify `--account` or `--character`. Account aliases
+match case-insensitively and take precedence over character names; `--character`
+bypasses aliases. Character names resolve through the existing cache, with an ESI
+lookup on a cache miss. The selected settings file must exist in that profile.
+Quote names and paths containing spaces. Use `--` before paths beginning with `-`.
+
+Only JSON goes to stdout; errors go to stderr. The source file is never modified.
+This exports all supported decoded settings, including unrelated settings and
+temporary formations. It differs from `formation list -o json`, which exports
+only one formation in its compact portable format.
+
+The typed JSON follows the decoder's upstream convention: byte strings use
+`bytes:`, Unicode uses `utf8:`, arbitrary precision integers use `long:`, and
+tuples use `{"tuple":[...]}`. Dictionary keys carry type prefixes such as `int:`
+and `bytes:`; compound keys use `json:`. Binary byte strings use `bytes:b64:`.
+Non-finite floats and object wrappers are represented explicitly as data.
+Shared references expand into repeated values rather than retaining identity.
+Unsupported types, invalid data, bad checksums, or excessive expansion return
+an error before printing a document. This is an inspection export; JSON import
+and byte-identical round trips are not supported.
+
 ## Lookup
 
 List characters across all `settings_*` profiles in the configured EVE environment and their corporations and alliances, resolving IDs to names. These commands produce the same output:

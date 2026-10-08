@@ -9,6 +9,13 @@ numeric/string/container types, object wrappers, and Adler-32 checksums. Object
 wrappers are represented as data; no deserialization callbacks are executed.
 It is not an encoder or a lossless editing API.
 
+`ToJSON` exports the complete decoded value using the upstream typed JSON
+convention from `src/json.rs`. It preserves typed dictionary keys, tuples,
+byte/Unicode strings, large integers, non-finite floats, and object wrappers.
+It expands shared references, with independent nesting, node, and estimated
+size limits. Duplicate JSON keys and unsupported object payload shapes error
+instead of silently dropping data. No JSON-to-marshal encoder is provided.
+
 As in the reference library, database rows, nested streams, pickle payloads, and
 complex numbers are unsupported. Unknown tags, cyclic/unresolved references,
 invalid encodings, bad checksums, and trailing data cause errors. Limits are
