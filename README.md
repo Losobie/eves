@@ -1,5 +1,11 @@
 # Usage
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+The blue.Marshal decoder also retains the upstream TrueBrain and CCP Games
+copyright and license notices in [internal/bluemarshal/LICENSE](internal/bluemarshal/LICENSE).
+
 ## Releases
 
 Pushing a stable SemVer tag publishes a GitHub release through
@@ -9,10 +15,17 @@ Prerelease tags (`v1.2.3-rc.1`), malformed versions, and tags whose commits are
 not in `main`'s history are skipped.
 
 The workflow tests on Windows and Linux before building AMD64 and ARM64
-archives for each OS. Windows downloads are ZIP files containing `eves.exe`;
-Linux and macOS downloads are tar.gz files containing `eves`. Each archive also
-includes this README and the decoder's license notices. `SHA256SUMS.txt`
-contains archive checksums. Published releases are left unchanged on reruns;
+executables and archives for Windows, Linux, and macOS. Standalone executable
+downloads are named `eves_<tag>_<os>_<arch>`, with `.exe` for Windows. For example,
+`eves_v1.2.3_windows_amd64.exe` can be downloaded and run directly. On Linux and
+macOS, make standalone downloads executable with `chmod +x <filename>`.
+
+Windows ZIP archives contain `eves.exe`; Linux and macOS tar.gz archives contain
+`eves`. Each archive also includes this README, the project's `LICENSE`, and
+the decoder's license notices. Both `LICENSE` and `bluemarshal-LICENSE.txt`
+are also available alongside standalone executables. `SHA256SUMS.txt` covers
+both executables and archives, plus both license files. Published releases are
+left unchanged on reruns;
 interrupted draft releases can be completed by rerunning the workflow.
 
 Merge the workflow into `main`, then tag and push the desired commit:
@@ -47,6 +60,17 @@ configuration or a local EVE installation.
 
 There is no active-profile setting. Copy and group
 references without `@profile` use `Default`; lookup lists scan all profiles.
+
+## About
+
+```text
+eves about
+```
+
+Shows the version and platform, author Losobie (in-game character **Clento Loso**),
+GitHub repository, and project/decoder license links. It works without
+configuration or an EVE installation. Release builds show their version tag;
+local builds default to `development`.
 
 ## List Profiles
 

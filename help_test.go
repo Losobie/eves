@@ -26,6 +26,7 @@ func TestShowHelpContext(t *testing.T) {
 		{[]string{"profile", "list", "--help"}, commandHelp["profile"]},
 		{[]string{"formation", "list", "--help"}, commandHelp["formation"]},
 		{[]string{"export", "--help"}, commandHelp["export"]},
+		{[]string{"about", "--help"}, commandHelp["about"]},
 	} {
 		var output bytes.Buffer
 		if !showHelp(test.args, &output) || output.String() != test.want+"\n" {

@@ -68,7 +68,7 @@ jobs:
       - run: go vet ./...
 
   build:
-    name: Build release archives
+    name: Build release executables and archives
     needs: [validate, test]
     if: needs.validate.outputs.eligible == 'true'
     runs-on: ubuntu-latest
@@ -97,21 +97,29 @@ jobs:
               if [[ "$os" == windows ]]; then
                 binary=eves.exe
               fi
-              GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags='-s -w' -o "$staging/$binary" .
+              GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="-s -w -X main.version=$TAG" -o "$staging/$binary" .
+              executable="$name"
+              if [[ "$os" == windows ]]; then
+                executable="$name.exe"
+              fi
+              cp "$staging/$binary" "dist/$executable"
               cp README.md "$staging/README.md"
+              cp LICENSE "$staging/LICENSE"
               cp internal/bluemarshal/LICENSE "$staging/bluemarshal-LICENSE.txt"
               if [[ "$os" == windows ]]; then
                 archive="$PWD/dist/$name.zip"
-                (cd "$staging" && zip -q "$archive" "$binary" README.md bluemarshal-LICENSE.txt)
+                (cd "$staging" && zip -q "$archive" "$binary" README.md LICENSE bluemarshal-LICENSE.txt)
               else
-                tar -czf "dist/$name.tar.gz" -C "$staging" "$binary" README.md bluemarshal-LICENSE.txt
+                tar -czf "dist/$name.tar.gz" -C "$staging" "$binary" README.md LICENSE bluemarshal-LICENSE.txt
               fi
             done
           done
-          (cd dist && sha256sum *.zip *.tar.gz > SHA256SUMS.txt)
+          cp LICENSE dist/LICENSE
+          cp internal/bluemarshal/LICENSE dist/bluemarshal-LICENSE.txt
+          (cd dist && sha256sum eves_* LICENSE bluemarshal-LICENSE.txt > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v7
         with:
-          name: release-archives
+          name: release-assets
           path: dist/*
           if-no-files-found: error
           retention-days: 7
@@ -125,9 +133,9 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: release-archives
+          name: release-assets
           path: dist
-      - name: Publish archives and checksums
+      - name: Publish executables, archives, and checksums
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

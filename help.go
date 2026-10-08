@@ -12,6 +12,7 @@ Usage: eves <command> [arguments]
 
 Commands:
   help     Show general help
+  about    Show version, author, repository, and licenses
   lookup   Resolve character, corporation, and alliance names and IDs
   account  List, name, detect, and copy account settings
   copy     Copy character settings to a character or group
@@ -28,6 +29,13 @@ Run eves <command> --help for command details.
 Running eves without arguments or using eves help shows this help.`
 
 var commandHelp = map[string]string{
+	"about": `Show project information.
+
+Usage: eves about
+
+Shows the build version/platform, author and in-game character, GitHub
+repository, MIT license, and decoder credits. No configuration or EVE
+installation is required.`,
 	"export": `Export a complete EVE settings file as typed JSON.
 
 Usage: eves export <file-path|id-or-name[@profile]> [--account|--character] [--plain]

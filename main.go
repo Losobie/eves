@@ -36,6 +36,12 @@ func main() {
 	for i, a := range args {
 		vlog("args[%d]: %q", i, a)
 	}
+	if args[1] == "about" {
+		if err := runAbout(args[2:], os.Stdout); err != nil {
+			fail(err)
+		}
+		return
+	}
 	if args[1] == "export" {
 		if err := runExport(args[2:], os.Stdout); err != nil {
 			fail(err)
