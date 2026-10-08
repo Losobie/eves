@@ -29,7 +29,7 @@ Running eves without arguments shows this help.`
 var commandHelp = map[string]string{
 	"export": `Export a complete EVE settings file as typed JSON.
 
-Usage: eves export <file-path|id-or-name[@profile]> [--account|--character]
+Usage: eves export <file-path|id-or-name[@profile]> [--account|--character] [--plain]
 
 Accepts a file path, character ID/name, or account ID/assigned name.
 References use Default unless @profile supplies a name or zero-based index.
@@ -41,6 +41,10 @@ An ID with both settings types requires --account or --character.
 Prints only indented JSON to stdout; redirect it to save a document.
 Typed markers preserve byte/Unicode strings, dictionary keys, tuples, large
 integers, and object wrappers. Shared references expand to repeated values.
+Use --plain to omit type markers: strings/keys have no prefixes, tuples become
+arrays, and large integers become JSON numbers. Instances export their state.
+Binary strings become base64; non-finite floats become "nan", "inf", or "-inf".
+Plain output loses original types; keys that collide after conversion error.
 Unsupported or corrupt files return an error. Source files are never modified.
 This is an inspection export; settings import is not implemented.
 File-path exports do not require configuration or a local EVE installation.
@@ -49,6 +53,7 @@ Examples:
   eves export "C:\EVE\settings_Default\core_user_12345.dat"
   eves export "Character Name@PvP" > settings.json
   eves export "Alpha@Default"
+  eves export "Alpha@Default" --plain > settings.json
   eves export 12345@1 --account`,
 	"formation": `List custom probe formations stored in account settings.
 

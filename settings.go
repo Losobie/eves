@@ -13,11 +13,12 @@ import (
 	"losobie.com/eves/internal/bluemarshal"
 )
 
-const settingsUsage = "usage: eves export <file-path|id-or-name[@profile]> [--account|--character]"
+const settingsUsage = "usage: eves export <file-path|id-or-name[@profile]> [--account|--character] [--plain]"
 
 type settingsExportOptions struct {
 	source string
 	kind   string
+	plain  bool
 }
 
 func parseSettingsExport(args []string) (settingsExportOptions, error) {
@@ -26,6 +27,10 @@ func parseSettingsExport(args []string) (settingsExportOptions, error) {
 	for _, arg := range args {
 		if !positional && arg == "--" {
 			positional = true
+			continue
+		}
+		if !positional && arg == "--plain" {
+			opts.plain = true
 			continue
 		}
 		if !positional && (arg == "--account" || arg == "--character") {
@@ -76,7 +81,7 @@ func runExport(args []string, output io.Writer) error {
 		if opts.kind != "" {
 			return fmt.Errorf("--%s applies to references, not file paths", opts.kind)
 		}
-		return exportSettingsFile(opts.source, output)
+		return exportSettingsFile(opts.source, output, opts.plain)
 	}
 	config, err := LoadConfig()
 	if err != nil {
@@ -98,7 +103,7 @@ func runExport(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return exportSettingsFile(path, output)
+	return exportSettingsFile(path, output, opts.plain)
 }
 
 func resolveSettingsSource(baseDir string, accounts Accounts, service *lookupService, opts settingsExportOptions) (string, error) {
@@ -172,7 +177,7 @@ func resolveSettingsSource(baseDir string, accounts Accounts, service *lookupSer
 	return file("character", strconv.Itoa(entry.ID)), nil
 }
 
-func exportSettingsFile(path string, output io.Writer) error {
+func exportSettingsFile(path string, output io.Writer, plain bool) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open settings %s: %w", path, err)
@@ -186,7 +191,11 @@ func exportSettingsFile(path string, output io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("decode settings %s: %w", path, err)
 	}
-	value, err := bluemarshal.ToJSON(root)
+	convert := bluemarshal.ToJSON
+	if plain {
+		convert = bluemarshal.ToPlainJSON
+	}
+	value, err := convert(root)
 	if err != nil {
 		return fmt.Errorf("convert settings %s: %w", path, err)
 	}

@@ -139,6 +139,7 @@ eves export "C:\EVE\settings_Default\core_user_12345.dat"
 eves export 12345
 eves export "Character Name@PvP"
 eves export "Alpha@Default" > settings.json
+eves export "Alpha@Default" --plain > settings.json
 eves export 12345@1 --account
 eves export "Character Name" --character
 ```
@@ -170,6 +171,17 @@ Shared references expand into repeated values rather than retaining identity.
 Unsupported types, invalid data, bad checksums, or excessive expansion return
 an error before printing a document. This is an inspection export; JSON import
 and byte-identical round trips are not supported.
+
+Use `--plain` for ordinary JSON without type markers. String values and
+dictionary keys have no type prefixes, tuples become arrays, and large integers
+become JSON numbers with their exact decimal digits. JSON consumers using
+floating-point numbers may round large integers. Invalid UTF-8 byte strings
+become unmarked base64 strings; non-finite floats become `"nan"`, `"inf"`, or
+`"-inf"`. Instance wrappers become their state and callback wrappers become
+their contents. Construction records retain callable/arguments, state, and
+iterator data without their type wrapper or `newobj` marker. This mode loses
+original type distinctions. If different dictionary keys convert to the same
+JSON key, export fails before writing output; use typed output for that file.
 
 ## Lookup
 

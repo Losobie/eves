@@ -163,3 +163,101 @@ func TestJSONExpansionLimits(t *testing.T) {
 		t.Fatalf("unbounded string expansion: %v", err)
 	}
 }
+
+func TestPlainJSONFixture(t *testing.T) {
+	data, err := os.ReadFile("testdata/formations.dat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := Decode(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := ToPlainJSON(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"ui":{
+		"probescanning.customFormations":[134280801871504062,{
+			"7":["Drifter: α 🚀",[[[250000,0,0],37399467675],[[-250000,0,0],37399467675]]],
+			"2":["Pinpoint",[[[0,500000,0],37399467675]]],
+			"-4":["tempFormation",[]]
+		}],
+		"probescanning.selectedFormationID":[134280801871504062,7],
+		"unrelated":[9999999999999999999999999999,{
+			"bool":true,"float":1.5,"negative":-40000,
+			"long":-99999999999999999999999999,"instance":{"test":null}
+		}]
+	}}`
+	if !reflect.DeepEqual(jsonDocument(t, actual), jsonDocument(t, []byte(want))) {
+		t.Fatalf("plain fixture:\n%s", actual)
+	}
+}
+
+func TestPlainJSONTypes(t *testing.T) {
+	for _, test := range []struct {
+		value *Value
+		want  string
+	}{
+		{&Value{Kind: TY_LONG, Text: "999999999999999999999999"}, `999999999999999999999999`},
+		{&Value{Kind: TY_BUFFER, Text: "bytes:literal"}, `"bytes:literal"`},
+		{&Value{Kind: TY_BUFFER, Text: "b64:literal"}, `"b64:literal"`},
+		{&Value{Kind: TY_BUFFER, Text: "\xff\x00"}, `"/wA="`},
+		{&Value{Kind: TY_UTF8, Text: "utf8:🚀"}, `"utf8:🚀"`},
+		{&Value{Kind: TY_GLOBAL, Text: "util.KeyVal"}, `"util.KeyVal"`},
+		{&Value{Kind: TY_FLOAT, Float: math.NaN()}, `"nan"`},
+		{&Value{Kind: TY_FLOAT, Float: math.Inf(1)}, `"inf"`},
+		{&Value{Kind: TY_FLOAT, Float: math.Inf(-1)}, `"-inf"`},
+		{&Value{Kind: TY_TUPLE}, `[]`},
+		{&Value{Kind: TY_LIST}, `[]`},
+		{&Value{Kind: TY_DICT}, `{}`},
+		{&Value{Kind: TY_INSTANCE, Items: []*Value{{Kind: TY_BUFFER, Text: "Class"}, {Kind: TY_TRUE}}}, `true`},
+		{&Value{Kind: TY_CALLBACK, Items: []*Value{{Kind: TY_INT64, Int: 7}}}, `7`},
+		{&Value{Kind: TY_NEWOBJ, Items: []*Value{{Kind: TY_TUPLE, Items: []*Value{{Kind: TY_TUPLE}}}}}, `{"args":[],"callable":null,"dict_items":[],"list_items":[],"state":null}`},
+		{&Value{Kind: TY_REDUCE, Items: []*Value{{Kind: TY_TUPLE, Items: []*Value{{Kind: TY_GLOBAL, Text: "Class"}, {Kind: TY_TUPLE}, {Kind: TY_DICT}}}}}, `{"args":[],"callable":"Class","dict_items":[],"list_items":[],"state":{}}`},
+	} {
+		value, err := ToPlainJSON(test.value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := json.Marshal(value)
+		if err != nil || string(data) != test.want {
+			t.Errorf("type %d: got %s, %v; want %s", test.value.Kind, data, err, test.want)
+		}
+	}
+}
+
+func TestPlainJSONKeys(t *testing.T) {
+	for _, keys := range [][]*Value{
+		{{Kind: TY_INT64, Int: 1}, {Kind: TY_UTF8, Text: "1"}},
+		{{Kind: TY_BUFFER, Text: "same"}, {Kind: TY_UTF8, Text: "same"}},
+		{{Kind: TY_NONE}, {Kind: TY_BUFFER, Text: "null"}},
+	} {
+		v := &Value{Kind: TY_DICT}
+		for _, key := range keys {
+			v.Pairs = append(v.Pairs, Pair{key, &Value{Kind: TY_TRUE}})
+		}
+		if _, err := ToJSON(v); err != nil {
+			t.Fatalf("distinct typed keys rejected: %v", err)
+		}
+		if _, err := ToPlainJSON(v); err == nil || !strings.Contains(err.Error(), "collide") {
+			t.Fatalf("plain key collision accepted: %v", err)
+		}
+	}
+	v := &Value{Kind: TY_DICT, Pairs: []Pair{
+		{&Value{Kind: TY_TUPLE, Items: []*Value{{Kind: TY_INT64, Int: 1}, {Kind: TY_BUFFER, Text: "x"}}}, &Value{Kind: TY_TRUE}},
+		{&Value{Kind: TY_FALSE}, &Value{Kind: TY_NONE}},
+	}}
+	value, err := ToPlainJSON(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(value)
+	if err != nil || string(data) != `{"[1,\"x\"]":true,"false":null}` {
+		t.Fatalf("plain keys = %s, %v", data, err)
+	}
+}

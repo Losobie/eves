@@ -18,7 +18,19 @@ func ToJSON(v *Value) (any, error) {
 	return w.value(v, 0)
 }
 
-type jsonWalker struct{ nodes, size int }
+// ToPlainJSON omits marshal type markers for inspection with ordinary JSON
+// tools. It is intentionally lossy: tuples become arrays, instances become
+// their state, and dictionary keys lose their original types. Colliding keys
+// are rejected rather than silently overwritten.
+func ToPlainJSON(v *Value) (any, error) {
+	w := jsonWalker{plain: true}
+	return w.value(v, 0)
+}
+
+type jsonWalker struct {
+	nodes, size int
+	plain       bool
+}
 
 func (w *jsonWalker) visit(v *Value, depth int) error {
 	if v == nil {
@@ -83,6 +95,9 @@ func (w *jsonWalker) value(v *Value, depth int) (any, error) {
 	case TY_FLOAT:
 		s := floatText(v.Float)
 		if math.IsNaN(v.Float) || math.IsInf(v.Float, 0) {
+			if w.plain {
+				return s, nil
+			}
 			return "float:" + s, nil
 		}
 		if !strings.ContainsAny(s, ".eE") {
@@ -90,19 +105,34 @@ func (w *jsonWalker) value(v *Value, depth int) (any, error) {
 		}
 		return json.Number(s), nil
 	case TY_LONG:
+		if w.plain {
+			return json.Number(v.Text), nil
+		}
 		return "long:" + v.Text, nil
 	case TY_BUFFER:
+		if w.plain {
+			if utf8.ValidString(v.Text) {
+				return v.Text, nil
+			}
+			return base64.StdEncoding.EncodeToString([]byte(v.Text)), nil
+		}
 		return bytesText(v.Text), nil
 	case TY_UTF8:
+		if w.plain {
+			return v.Text, nil
+		}
 		return "utf8:" + v.Text, nil
 	case TY_GLOBAL:
+		if w.plain {
+			return v.Text, nil
+		}
 		return "global:" + v.Text, nil
 	case TY_LIST, TY_TUPLE:
 		items, err := w.items(v.Items, depth+1)
 		if err != nil {
 			return nil, err
 		}
-		if v.Kind == TY_TUPLE {
+		if v.Kind == TY_TUPLE && !w.plain {
 			return map[string]any{"tuple": items}, nil
 		}
 		return items, nil
@@ -114,6 +144,9 @@ func (w *jsonWalker) value(v *Value, depth int) (any, error) {
 				return nil, err
 			}
 			if _, exists := result[key]; exists {
+				if w.plain {
+					return nil, fmt.Errorf("dictionary keys collide as %q in plain JSON; use typed output", key)
+				}
 				return nil, fmt.Errorf("duplicate JSON dictionary key %q", key)
 			}
 			value, err := w.value(pair.Value, depth+1)
@@ -138,12 +171,18 @@ func (w *jsonWalker) value(v *Value, depth int) (any, error) {
 			return nil, fmt.Errorf("instance class is not valid UTF-8")
 		}
 		state, err := w.value(v.Items[1], depth+1)
+		if w.plain {
+			return state, err
+		}
 		return map[string]any{"instance": map[string]any{"class": class, "state": state}}, err
 	case TY_CALLBACK:
 		if len(v.Items) != 1 {
 			return nil, fmt.Errorf("invalid callback")
 		}
 		inner, err := w.value(v.Items[0], depth+1)
+		if w.plain {
+			return inner, err
+		}
 		return map[string]any{"callback": inner}, err
 	case TY_REDUCE, TY_NEWOBJ:
 		return w.reduce(v, depth)
@@ -153,6 +192,17 @@ func (w *jsonWalker) value(v *Value, depth int) (any, error) {
 }
 
 func (w *jsonWalker) key(v *Value, depth int) (string, error) {
+	if w.plain {
+		value, err := w.value(v, depth)
+		if err != nil {
+			return "", err
+		}
+		if text, ok := value.(string); ok {
+			return text, nil
+		}
+		data, err := json.Marshal(value)
+		return string(data), err
+	}
 	if err := w.visit(v, depth); err != nil {
 		return "", err
 	}
@@ -226,5 +276,9 @@ func (w *jsonWalker) reduce(v *Value, depth int) (any, error) {
 		pairs = append(pairs, items)
 	}
 	inner["dict_items"] = pairs
+	if w.plain {
+		delete(inner, "newobj")
+		return inner, nil
+	}
 	return map[string]any{"reduce": inner}, nil
 }

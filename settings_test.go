@@ -56,13 +56,13 @@ func TestSettingsExportSources(t *testing.T) {
 		{"Detailed Pilot", "character", "Default", "core_char_56.dat"},
 	} {
 		t.Run(test.source+test.kind, func(t *testing.T) {
-			path, err := resolveSettingsSource(base, accounts, service, settingsExportOptions{test.source, test.kind})
+			path, err := resolveSettingsSource(base, accounts, service, settingsExportOptions{source: test.source, kind: test.kind})
 			want := filepath.Join(base, "settings_"+test.profile, test.filename)
 			if err != nil || path != want {
 				t.Fatalf("got %s, %v; want %s", path, err, want)
 			}
 			var output bytes.Buffer
-			if err := exportSettingsFile(path, &output); err != nil || output.String() != "null\n" {
+			if err := exportSettingsFile(path, &output, false); err != nil || output.String() != "null\n" {
 				t.Fatalf("export = %q, %v", output.String(), err)
 			}
 		})
@@ -77,7 +77,7 @@ func TestSettingsExportSources(t *testing.T) {
 		{"Pilot@", "", "invalid settings reference"},
 		{"Pilot@../PvP", "", "invalid settings reference"},
 	} {
-		_, err := resolveSettingsSource(base, accounts, service, settingsExportOptions{test.source, test.kind})
+		_, err := resolveSettingsSource(base, accounts, service, settingsExportOptions{source: test.source, kind: test.kind})
 		if err == nil || !strings.Contains(err.Error(), test.errorText) {
 			t.Errorf("%s: got %v, want %s", test.source, err, test.errorText)
 		}
@@ -147,12 +147,22 @@ func TestSettingsReferenceExport(t *testing.T) {
 		}
 	}
 	for _, source := range []string{"12", "34", "Alpha", "pilot", "Alpha@PvP", "34@1"} {
-		var output bytes.Buffer
-		if err := runExport([]string{source}, &output); err != nil {
-			t.Fatalf("%s: %v", source, err)
-		}
-		if !json.Valid(output.Bytes()) || !strings.Contains(output.String(), "bytes:unrelated") {
-			t.Fatalf("%s: incomplete export %s", source, output.String())
+		for _, plain := range []bool{false, true} {
+			var output bytes.Buffer
+			args := []string{source}
+			if plain {
+				args = append(args, "--plain")
+			}
+			if err := runExport(args, &output); err != nil {
+				t.Fatalf("%s: %v", source, err)
+			}
+			key := "bytes:unrelated"
+			if plain {
+				key = `"unrelated"`
+			}
+			if !json.Valid(output.Bytes()) || !strings.Contains(output.String(), key) {
+				t.Fatalf("%s: incomplete export %s", source, output.String())
+			}
 		}
 	}
 	// Character IDs work without reading account aliases, even with a broken map.
@@ -183,12 +193,17 @@ func TestSettingsArguments(t *testing.T) {
 		}
 	}
 	for _, args := range [][]string{{"--account", "Alpha@PvP"}, {"Alpha@PvP", "--account"}} {
-		if opts, err := parseSettingsExport(args); err != nil || opts != (settingsExportOptions{"Alpha@PvP", "account"}) {
+		if opts, err := parseSettingsExport(args); err != nil || opts != (settingsExportOptions{source: "Alpha@PvP", kind: "account"}) {
 			t.Errorf("%v: got %+v, %v", args, opts, err)
 		}
 	}
 	if opts, err := parseSettingsExport([]string{"--", "-file.dat"}); err != nil || opts.source != "-file.dat" {
 		t.Fatalf("end of options = %+v, %v", opts, err)
+	}
+	for _, args := range [][]string{{"--plain", "Alpha@PvP", "--account"}, {"Alpha@PvP", "--account", "--plain"}} {
+		if opts, err := parseSettingsExport(args); err != nil || opts != (settingsExportOptions{source: "Alpha@PvP", kind: "account", plain: true}) {
+			t.Errorf("plain arguments %v: %+v, %v", args, opts, err)
+		}
 	}
 }
 
@@ -241,6 +256,22 @@ func TestSettingsFileExportBeforeConfig(t *testing.T) {
 	}
 	if err := json.Unmarshal(want, &wantValue); err != nil || !reflect.DeepEqual(actualValue, wantValue) {
 		t.Fatalf("full-file export differs from fixture: %v", err)
+	}
+	cmd = exec.Command(os.Args[0], "-test.run=^TestSettingsFileExportBeforeConfig$", "--", "export", source, "--plain")
+	stdout.Reset()
+	stderr.Reset()
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("plain export: %v, %s", err, stderr.String())
+	}
+	data = bytes.TrimSuffix(stdout.Bytes(), []byte("PASS\n"))
+	if err := json.Unmarshal(data, &actualValue); err != nil {
+		t.Fatalf("invalid plain JSON: %v, %s", err, data)
+	}
+	root := actualValue.(map[string]any)
+	ui, ok := root["ui"].(map[string]any)
+	if !ok || ui["unrelated"] == nil || root["bytes:ui"] != nil {
+		t.Fatalf("incomplete plain export: %s", data)
 	}
 	after, err := os.ReadFile(source)
 	if err != nil || !bytes.Equal(after, fixture) {

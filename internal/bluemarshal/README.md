@@ -16,6 +16,13 @@ It expands shared references, with independent nesting, node, and estimated
 size limits. Duplicate JSON keys and unsupported object payload shapes error
 instead of silently dropping data. No JSON-to-marshal encoder is provided.
 
+`ToPlainJSON` omits the markers for ordinary JSON inspection. It uses unprefixed
+strings/keys, arrays for tuples, numbers for long integers, and unmarked base64
+for binary strings. Object instances/callbacks export their state/contents;
+construction records retain payload data without type wrappers. Non-finite
+floats become strings. Plain-key collisions cause errors rather than data loss.
+The same expansion limits apply. Original type information is lost.
+
 As in the reference library, database rows, nested streams, pickle payloads, and
 complex numbers are unsupported. Unknown tags, cyclic/unresolved references,
 invalid encodings, bad checksums, and trailing data cause errors. Limits are
