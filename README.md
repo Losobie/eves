@@ -1,5 +1,32 @@
 # Usage
 
+## Releases
+
+Pushing a stable SemVer tag publishes a GitHub release through
+[the release workflow](.github/workflows/release.yml). Tags may use `v1.2.3` or
+`1.2.3`, including optional SemVer build metadata such as `v1.2.3+build.4`.
+Prerelease tags (`v1.2.3-rc.1`), malformed versions, and tags whose commits are
+not in `main`'s history are skipped.
+
+The workflow tests on Windows and Linux before building AMD64 and ARM64
+archives for each OS. Windows downloads are ZIP files containing `eves.exe`;
+Linux and macOS downloads are tar.gz files containing `eves`. Each archive also
+includes this README and the decoder's license notices. `SHA256SUMS.txt`
+contains archive checksums. Published releases are left unchanged on reruns;
+interrupted draft releases can be completed by rerunning the workflow.
+
+Merge the workflow into `main`, then tag and push the desired commit:
+
+```text
+git switch main
+git pull --ff-only
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+Publishing uses the repository's built-in `GITHUB_TOKEN`; no extra secret is
+required. The tagged commit must contain the workflow for the tag push to run it.
+
 ## Help
 
 Running `eves` without arguments, `eves help`, or `eves --help` shows general help.

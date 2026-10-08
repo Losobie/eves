@@ -1,0 +1,148 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+      - '[0-9]*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate stable version tag
+    runs-on: ubuntu-latest
+    outputs:
+      eligible: ${{ steps.tag.outputs.eligible }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require stable SemVer and a commit on main
+        id: tag
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Optional v prefix and build metadata; prerelease suffixes are excluded.
+          stable='^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          if [[ ! "$TAG" =~ $stable ]]; then
+            echo "Skipping non-stable-SemVer tag: $TAG"
+            echo 'eligible=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+            echo "Skipping tag whose commit is not on main: $TAG"
+            echo 'eligible=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo 'eligible=true' >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Test on ${{ matrix.runner }}
+    needs: validate
+    if: needs.validate.outputs.eligible == 'true'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.mod
+      - run: go test ./...
+      - run: go vet ./...
+
+  build:
+    name: Build release archives
+    needs: [validate, test]
+    if: needs.validate.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.mod
+      - name: Build AMD64 and ARM64 binaries
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          CGO_ENABLED: '0'
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for os in windows linux darwin; do
+            for arch in amd64 arm64; do
+              name="eves_${TAG}_${os}_${arch}"
+              staging="$(mktemp -d)"
+              binary=eves
+              if [[ "$os" == windows ]]; then
+                binary=eves.exe
+              fi
+              GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags='-s -w' -o "$staging/$binary" .
+              cp README.md "$staging/README.md"
+              cp internal/bluemarshal/LICENSE "$staging/bluemarshal-LICENSE.txt"
+              if [[ "$os" == windows ]]; then
+                archive="$PWD/dist/$name.zip"
+                (cd "$staging" && zip -q "$archive" "$binary" README.md bluemarshal-LICENSE.txt)
+              else
+                tar -czf "dist/$name.tar.gz" -C "$staging" "$binary" README.md bluemarshal-LICENSE.txt
+              fi
+            done
+          done
+          (cd dist && sha256sum *.zip *.tar.gz > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-archives
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-archives
+          path: dist
+      - name: Publish archives and checksums
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if draft="$(gh release view "$TAG" --json isDraft --jq '.isDraft' 2>/dev/null)"; then
+            if [[ "$draft" == false ]]; then
+              echo "Release $TAG is already published."
+              exit 0
+            fi
+            # Recover a draft left behind by an interrupted upload.
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --draft=false --prerelease=false
+          else
+            gh release create "$TAG" dist/* --verify-tag --generate-notes --title "$TAG"
+          fi
