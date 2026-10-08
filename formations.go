@@ -246,16 +246,26 @@ type formationJSON struct {
 	Probes  []formationProbeJSON `json:"probes"`
 }
 
-// Each probe is [x kilometres, y kilometres, z kilometres, scan range AU].
+// Version 2 probes are [north/south km, east/west km, up/down km, range AU].
+// Positive values mean north, east, and up; negative values mean south, west,
+// and down. EVE stores +X west, +Y up, and +Z north.
 type formationProbeJSON [4]float64
 
+func (probe formationProbe) compassCoordinates() formationProbeJSON {
+	coordinates := formationProbeJSON{probe.Z / 1000, -probe.X / 1000, probe.Y / 1000, probe.Range / 149597870700}
+	// Negating X must not turn a centered probe into a displayed -0.
+	for i, value := range coordinates {
+		if value == 0 {
+			coordinates[i] = 0
+		}
+	}
+	return coordinates
+}
+
 func printFormationJSON(output io.Writer, formation probeFormation) error {
-	value := formationJSON{Version: 1, Name: formation.Name, Probes: make([]formationProbeJSON, 0, len(formation.Probes))}
+	value := formationJSON{Version: 2, Name: formation.Name, Probes: make([]formationProbeJSON, 0, len(formation.Probes))}
 	for _, probe := range formation.Probes {
-		value.Probes = append(value.Probes, formationProbeJSON{
-			probe.X / 1000, probe.Y / 1000, probe.Z / 1000,
-			probe.Range / 149597870700,
-		})
+		value.Probes = append(value.Probes, probe.compassCoordinates())
 	}
 	encoder := json.NewEncoder(output)
 	encoder.SetIndent("", "  ")
@@ -288,11 +298,12 @@ func printFormationProbes(output io.Writer, probes []formationProbe) error {
 		return err
 	}
 	writer := tabwriter.NewWriter(output, 0, 4, 2, ' ', 0)
-	if _, err := fmt.Fprintln(writer, "PROBE\tX (km)\tY (km)\tZ (km)\tRANGE (AU)"); err != nil {
+	if _, err := fmt.Fprintln(writer, "PROBE\tNORTH/SOUTH (km)\tEAST/WEST (km)\tUP/DOWN (km)\tRANGE (AU)"); err != nil {
 		return err
 	}
 	for i, probe := range probes {
-		if _, err := fmt.Fprintf(writer, "%d\t%g\t%g\t%g\t%g\n", i+1, probe.X/1000, probe.Y/1000, probe.Z/1000, probe.Range/149597870700); err != nil {
+		coordinates := probe.compassCoordinates()
+		if _, err := fmt.Fprintf(writer, "%d\t%g\t%g\t%g\t%g\n", i+1, coordinates[0], coordinates[1], coordinates[2], coordinates[3]); err != nil {
 			return err
 		}
 	}

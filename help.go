@@ -75,12 +75,15 @@ omitting @profile uses Default. Profile names and zero-based indices work.
 
 Shows account ID/name, profile, formation ID/name, and probe count.
 Supply a formation name after the account reference to display its coordinates in km
-and scan ranges in AU. Names match case-insensitively; ambiguous names error.
+and scan ranges in AU. Coordinates use north/south, east/west, and up/down:
+positive means north, east, or up; negative means south, west, or down.
+Names match case-insensitively; ambiguous names error.
 Internal temporary formations are omitted. Settings files are never modified.
 Unreadable files are reported as errors; readable files are still listed.
 
 Use -o json (or --output json) with one selected formation to print portable
-JSON containing its name and probes, each as [x, y, z, au] (coordinates in km).
+JSON version 2 containing its name and probes, each as
+[north/south, east/west, up/down, au] (coordinates in km; same signs as text).
 Output defaults to text. Formation creation/import is not yet implemented.
 
 Examples:

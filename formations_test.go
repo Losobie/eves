@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -134,13 +135,13 @@ func TestFormationCoordinateSelector(t *testing.T) {
 		if len(lines) != 6 || strings.Contains(out.String(), "Pinpoint") {
 			t.Fatalf("unexpected output: %q", out.String())
 		}
-		if !strings.Contains(lines[3], "X (km)") || !strings.Contains(lines[3], "Y (km)") || !strings.Contains(lines[3], "Z (km)") || !strings.Contains(lines[3], "RANGE (AU)") {
+		if !strings.Contains(lines[3], "NORTH/SOUTH (km)") || !strings.Contains(lines[3], "EAST/WEST (km)") || !strings.Contains(lines[3], "UP/DOWN (km)") || !strings.Contains(lines[3], "RANGE (AU)") {
 			t.Fatalf("missing units: %s", lines[3])
 		}
-		if got := strings.Fields(lines[4]); !reflect.DeepEqual(got, []string{"1", "250", "0", "0", "0.25"}) {
+		if got := strings.Fields(lines[4]); !reflect.DeepEqual(got, []string{"1", "0", "-250", "0", "0.25"}) {
 			t.Fatalf("first probe = %v", got)
 		}
-		if got := strings.Fields(lines[5]); !reflect.DeepEqual(got, []string{"2", "-250", "0", "0", "0.25"}) {
+		if got := strings.Fields(lines[5]); !reflect.DeepEqual(got, []string{"2", "0", "250", "0", "0.25"}) {
 			t.Fatalf("second probe = %v", got)
 		}
 	}
@@ -183,7 +184,7 @@ func TestFormationAmbiguousNameAndEmptyProbes(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	if got := strings.Fields(lines[1]); !reflect.DeepEqual(got, []string{"1", "0.1255", "-2.5", "3.75", "1"}) {
+	if got := strings.Fields(lines[1]); !reflect.DeepEqual(got, []string{"1", "3.75", "-0.1255", "-2.5", "1"}) {
 		t.Fatalf("converted coordinates = %v", got)
 	}
 }
@@ -220,10 +221,10 @@ func TestFormationJSONOutput(t *testing.T) {
 			t.Fatalf("output isn't standalone JSON: %v\n%s", err, out.String())
 		}
 		want := map[string]any{
-			"version": float64(1), "name": "Drifter: α 🚀",
+			"version": float64(2), "name": "Drifter: α 🚀",
 			"probes": []any{
-				[]any{float64(250), float64(0), float64(0), 0.25},
-				[]any{float64(-250), float64(0), float64(0), 0.25},
+				[]any{float64(0), float64(-250), float64(0), 0.25},
+				[]any{float64(0), float64(250), float64(0), 0.25},
 			},
 		}
 		if !reflect.DeepEqual(got, want) {
@@ -266,8 +267,51 @@ func TestFormationJSONEmptyAndFractionalCoordinates(t *testing.T) {
 		if got.Name != "Name \"quoted\"\n<&>" || got.Probes == nil || len(got.Probes) != len(probes) {
 			t.Fatalf("unexpected export: %s", out.String())
 		}
-		if len(probes) > 0 && !reflect.DeepEqual(got.Probes[0], []float64{0.1255, -2.5, 3.75, 1}) {
+		if len(probes) > 0 && !reflect.DeepEqual(got.Probes[0], []float64{3.75, -0.1255, -2.5, 1}) {
 			t.Fatalf("coordinates = %s", out.String())
 		}
+	}
+}
+
+func TestFormationCompassDirections(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		probe formationProbe
+		want  []string
+	}{
+		{"north", formationProbe{Z: 250000}, []string{"250", "0", "0", "0"}},
+		{"south", formationProbe{Z: -250000}, []string{"-250", "0", "0", "0"}},
+		{"east", formationProbe{X: -250000}, []string{"0", "250", "0", "0"}},
+		{"west", formationProbe{X: 250000}, []string{"0", "-250", "0", "0"}},
+		{"up", formationProbe{Y: 250000}, []string{"0", "0", "250", "0"}},
+		{"down", formationProbe{Y: -250000}, []string{"0", "0", "-250", "0"}},
+		{"center", formationProbe{Y: math.Copysign(0, -1), Z: math.Copysign(0, -1)}, []string{"0", "0", "0", "0"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var text, exported bytes.Buffer
+			if err := printFormationProbes(&text, []formationProbe{test.probe}); err != nil {
+				t.Fatal(err)
+			}
+			lines := strings.Split(strings.TrimSpace(text.String()), "\n")
+			if got := strings.Fields(lines[1])[1:]; !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("text coordinates = %v, want %v", got, test.want)
+			}
+			if err := printFormationJSON(&exported, probeFormation{Name: test.name, Probes: []formationProbe{test.probe}}); err != nil {
+				t.Fatal(err)
+			}
+			var got struct {
+				Probes [][]json.Number `json:"probes"`
+			}
+			if err := json.Unmarshal(exported.Bytes(), &got); err != nil {
+				t.Fatal(err)
+			}
+			var coordinates []string
+			for _, coordinate := range got.Probes[0] {
+				coordinates = append(coordinates, coordinate.String())
+			}
+			if !reflect.DeepEqual(coordinates, test.want) {
+				t.Fatalf("JSON coordinates = %v, want %v", coordinates, test.want)
+			}
+		})
 	}
 }

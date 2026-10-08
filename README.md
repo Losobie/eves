@@ -155,8 +155,15 @@ eves formation list "Alpha@Default" "temp"
 ```
 
 Formation names match case-insensitively. Missing or ambiguous names return an
-error. Coordinates are shown in kilometres, ranges in AU, and probes are
-numbered from 1 in their stored order. Omitted profiles still use `Default`.
+error. Coordinates are shown as `NORTH/SOUTH`, `EAST/WEST`, and `UP/DOWN` in
+kilometres. Positive values mean north, east, and up; negative values mean south,
+west, and down. Zero means no displacement on that axis. Ranges are in AU, and
+probes are numbered from 1 in their stored order. Omitted profiles still use
+`Default`.
+
+The conversion uses EVE's stored axes: north/south = Z, east/west = -X, and
+up/down = Y, following the compass mapping in
+[EVE Wrench's formation editor](https://github.com/eve-wrench/eve-wrench-app/blob/main/crates/eve-wrench/src/formation_editor/model.rs).
 
 Use `-o json` (also `--output json`) for a selected formation to print an
 indented JSON object suitable for copying, editing, or saving:
@@ -166,9 +173,12 @@ eves formation list "Alpha@Default" "temp" -o json
 eves formation list "Alpha@Default" "temp" -o json > temp.json
 ```
 
-The version 1 format contains `name` and a `probes` array. Each probe is
-`[x, y, z, au]`: coordinates in kilometres followed by scan range in AU.
-For example: `[250,0,0,0.25]`. Probe order is preserved.
+The version 2 format contains `name` and a `probes` array. Each probe is
+`[north/south, east/west, up/down, au]`: signed coordinates in kilometres
+followed by scan range in AU, using the same signs as text output.
+For example: `[250,0,0,0.25]` is 250 km north with a 0.25 AU scan range.
+Probe order is preserved. The version changes from 1 to 2 because the coordinate
+order and east/west sign differ from the previous `[x, y, z, au]` format.
 Account/profile information and the source formation ID are omitted so the
 definition can be reused elsewhere. JSON mode prints only JSON to stdout;
 errors go to stderr. JSON output requires both an account and formation name.
